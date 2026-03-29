@@ -76,6 +76,7 @@ def generate_questions(text: str, taxonomy_level: str, model_name: str = "llama3
     2. Topic Diversity (CRUCIAL): The provided context likely covers multiple different concepts or subtopics. You MUST extract different topics/formulas/concepts from the context and ensure each of the 5 questions is based on a completely different core concept from the context. DO NOT cluster questions around a single topic. Ask questions from different parts of the provided context.
     3. Complete Information: Every question MUST contain all the necessary numerical values, context, and data required to solve it. For example, if asking to calculate a final price with GST, you MUST provide the base price and the GST rate in the question itself. Never generate a question with missing information.
     4. Zero Repetition: Ensure each question is completely unique in structure, phrasing, and mathematical operation.
+    5. Mathematical Formatting (STRICT): You MUST format ALL numerical values, variables, mathematical formulas, equations, and expressions using correctly enclosed LaTeX. Use `$` for inline math (e.g., $f(x) = x^2$) and `$$` for larger block equations. Do not output raw text for equations (e.g., "y = xxm ++12" should be formatted clearly as $y = x^m + 12$ or similar).
     
     The math problems must strictly target the following Bloom's Taxonomy level: "{taxonomy_level}". 
     {level_instruction}
