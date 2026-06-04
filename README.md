@@ -1,69 +1,99 @@
-# 📚 Math Question Generator
+# 📚 Math Question Generator & Quiz Arena (Phase 2)
 
-A local, LLM-powered web application built with Streamlit that automatically generates customized math questions from your study materials. Simply upload a document, select a Bloom's Taxonomy level, and let the AI generate high-quality, diverse, and well-structured mathematical problems for practice or assessment.
+Welcome to the **Math Question Generator & Quiz Arena**, a professional full-stack web application designed for interactive learning and automated math assessment. Built on a modular, high-performance architecture featuring a **FastAPI backend** and a premium **React + Vite** single-page application.
 
-## ✨ Features
+The platform extracts concept structures from academic textbooks (PDF, Word, TXT), dynamically locates core topics using local TF-IDF math models, and utilizes local LLMs (via **Ollama**) to generate high-fidelity math assessments across **Bloom's Taxonomy levels** complete with dynamic step-by-step LaTeX solution roadmaps.
 
-- **Document Processing:** Supports extracting text from `.pdf`, `.docx`, and `.txt` files.
-- **Fast Concept Retrieval:** Uses TF-IDF and cosine similarity to quickly find the most relevant document chunks without needing a heavy embedding model or GPU.
-- **Local AI Generation:** Integrates with local LLMs via [Ollama](https://ollama.com/) (e.g., `llama3`, `mistral`, `phi3`) for complete privacy and offline question generation.
-- **Bloom's Taxonomy Levels:** Generates questions tailored to specific cognitive levels:
-  - Remember
-  - Understand
-  - Apply
-  - Analyze
-  - Evaluate
-  - Create
-- **Quality Assured:** Prompts are structured to ensure 5 completely unique questions containing all necessary numerical values and contexts, specifically targeted as mathematical problems rather than theoretical concepts.
+---
 
-## 🚀 Setup and Installation
+## ✨ Full-Stack Features
+
+1. **Generation & Accuracy Hub:**
+   * **Structured JSON Outputs:** Robust parsing pipeline guarantees the LLM strictly returns questions, answers, and solutions.
+   * **Step-by-Step solutions:** Auto-generated derivation blueprints for every problem, aiding students and teachers.
+   * **KaTeX Inline & Block Math:** Fast, high-contrast, beautiful typesetting of formulas ($f(x) = \int x\,dx$) in real-time.
+
+2. **Interactive Quiz Arena:**
+   * Practice calculations directly inside the web platform.
+   * Input answers, get instant grading feedback, and expand step-by-step solutions to inspect derivations.
+   * Interactive score reports detailing overall performance and accuracy.
+
+3. **Workspace Management:**
+   * **Decks Directory:** Retrieve previous question sets from session storage and reload them instantly.
+   * **Dynamic Model Detection:** Auto-discovers pulled Ollama models (e.g. `llama3`, `mistral`, `phi3`) from your local daemon.
+   * **Markdown Exports:** Download print-ready question sheets with one click.
+
+---
+
+## 🚀 Setup & Installation
 
 ### Prerequisites
 
-1. **Python 3.x** installed on your system.
-2. **Ollama:** You must have [Ollama](https://ollama.com/) installed and running locally to serve the LLM.
+1. **Python 3.10+** (with virtual environment management).
+2. **Node.js 18+** & **npm** (for compiling the React app).
+3. **Ollama:** Download and run [Ollama](https://ollama.com/) locally to serve the LLMs.
 
-### Installation Steps
+---
 
-1. **Clone the repository:**
+## 🛠️ Running the Platform
+
+To run the application, you will start the Backend API Gateway and the Frontend Dev Server concurrently.
+
+### 1. Start the FastAPI Backend
+
+1. Navigate to the project root directory.
+2. Activate your virtual environment and install Python dependencies:
    ```bash
-   git clone https://github.com/yusufdhansay/mathquegenerator.git
-   cd mathquegenerator
-   ```
-
-2. **Install Python dependencies:**
-   It is recommended to use a virtual environment.
-   ```bash
+   source .venv/bin/activate
    pip install -r requirements.txt
    ```
-
-3. **Pull the LLM model using Ollama:**
-   By default, the application uses `llama3`. Run this in your terminal to download the model before starting the app:
+3. Boot the API Server using Uvicorn:
    ```bash
-   ollama pull llama3
+   python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
    ```
+   * *The server will begin running on `http://127.0.0.1:8000`. You can inspect the interactive Swagger API documentation at `http://127.0.0.1:8000/docs`.*
 
-### Running the Application
+### 2. Start the React Frontend
 
-Start the Streamlit development server:
+1. Open a new terminal window and navigate to the `/frontend` directory:
+   ```bash
+   cd frontend
+   ```
+2. Install package dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the Vite development server:
+   ```bash
+   npm run dev
+   ```
+   * *Open the local browser portal, typically served at `http://localhost:5173`.*
 
-```bash
-streamlit run app.py
+---
+
+## 📂 Project Architecture
+
+```
+├── backend/
+│   ├── main.py                 # FastAPI routing, middleware, and upload controller
+│   ├── document_processor.py   # Extracts file streams & chunks text recursives
+│   └── question_generator.py   # TF-IDF cosine ranking & Ollama prompt engine
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   └── MathRenderer.jsx # Regular expression LaTeX compiler using KaTeX
+│   │   ├── App.jsx             # Sidebar manager, Workspace view, Quiz Arena
+│   │   ├── index.css           # Premium glassmorphism dark system styling
+│   │   └── main.jsx            # Vite DOM React mounting script
+│   └── package.json            # Node.js project requirements
+├── requirements.txt            # Unified Python dependency tracking manifest
+└── README.md                   # Setup and system user documentation
 ```
 
-The app will open automatically in your browser at `http://localhost:8501`.
+---
 
-## 📁 Project Structure
+## 📦 Tech Stack
 
-- **`app.py`**: The main Streamlit web application UI and orchestration logic.
-- **`document_processor.py`**: Contains logic for extracting text from PDFs, Word docs, and text files, as well as chunking the text using LangChain's RecursiveCharacterTextSplitter.
-- **`question_generator.py`**: Handles the TF-IDF chunk retrieval and interacts with the local Ollama LLM to generate the math questions based on customized Bloom's taxonomy prompts.
-- **`requirements.txt`**: List of Python dependencies required to run the application.
-
-## 🛠️ Built With
-
-- [Streamlit](https://streamlit.io/) - Web framework for data apps
-- [LangChain](https://python.langchain.com/) - Text processing tools
-- [Ollama](https://ollama.com/) - Local LLM runner
-- [Scikit-Learn](https://scikit-learn.org/) - TF-IDF Vectorization for chunk retrieval
-- [PyPDF2](https://pypi.org/project/PyPDF2/) / [python-docx](https://python-docx.readthedocs.io/) - File parsing
+*   **Backend:** FastAPI, Uvicorn, LangChain, PyPDF2, python-docx, scikit-learn
+*   **Frontend:** React, Vite, KaTeX, Lucide Icons, Vanilla CSS
+*   **AI Engine:** Local Ollama daemon running Llama-3, Mistral, or Phi-3

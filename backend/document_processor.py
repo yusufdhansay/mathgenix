@@ -1,29 +1,32 @@
 import os
+import io
 from PyPDF2 import PdfReader
 from docx import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-def extract_text_from_file(uploaded_file):
+def extract_text_from_bytes(file_bytes: bytes, filename: str):
     """
-    Extracts text from an uploaded file based on its extension.
+    Extracts text from uploaded file bytes based on the filename extension.
     """
-    filename = uploaded_file.name
     _, extension = os.path.splitext(filename)
     extension = extension.lower()
 
     if extension == '.txt':
-        return str(uploaded_file.read(), "utf-8")
+        return file_bytes.decode("utf-8", errors="ignore")
     
     elif extension == '.pdf':
-        pdf_reader = PdfReader(uploaded_file)
+        pdf_stream = io.BytesIO(file_bytes)
+        pdf_reader = PdfReader(pdf_stream)
         text = ""
         for page in pdf_reader.pages:
-            if page.extract_text():
-                text += page.extract_text() + "\n"
+            extracted = page.extract_text()
+            if extracted:
+                text += extracted + "\n"
         return text
     
     elif extension == '.docx':
-        doc = Document(uploaded_file)
+        docx_stream = io.BytesIO(file_bytes)
+        doc = Document(docx_stream)
         text = "\n".join([para.text for para in doc.paragraphs])
         return text
     
@@ -42,4 +45,3 @@ def get_text_chunks(text: str, chunk_size: int = 1000, chunk_overlap: int = 200)
     )
     chunks = text_splitter.split_text(text)
     return chunks
-

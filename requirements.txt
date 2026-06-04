@@ -82,3 +82,8 @@ xxhash==3.6.0
 yarl==1.23.0
 zstandard==0.25.0
 faiss-cpu==1.13.2
+fastapi>=0.100.0
+uvicorn>=0.20.0
+python-multipart>=0.0.6
+sympy>=1.13
+mpmath>=1.3
