@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import MathRenderer from './components/MathRenderer';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
 const BLOOMS_CARDS = [
   { level: 'Remember', desc: 'Identify basic facts, mathematical definitions, equations, and formulas.' },
@@ -36,6 +36,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('workspace'); // workspace, history, settings
 
   // Connection & Config State
+  const [backendConnected, setBackendConnected] = useState(false);
   const [ollamaConnected, setOllamaConnected] = useState(false);
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('llama-3.3-70b-versatile');
@@ -72,12 +73,17 @@ export default function App() {
   // Saved History State
   const [historyDecks, setHistoryDecks] = useState([]);
 
-  // Fetch health, models, and Groq info on mount
+  // Fetch health, models, and Groq info on mount + setup polling
   useEffect(() => {
     checkHealth();
     fetchModels();
     fetchGroqModels();
     
+    // Poll health status every 10 seconds to keep diagnostics updated
+    const intervalId = setInterval(() => {
+      checkHealth();
+    }, 10000);
+
     // Load local history if available
     const saved = localStorage.getItem('math_deck_history');
     if (saved) {
@@ -87,12 +93,15 @@ export default function App() {
         console.error('Failed to parse history', e);
       }
     }
+
+    return () => clearInterval(intervalId);
   }, []);
 
   const checkHealth = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/health`);
       const data = await response.json();
+      setBackendConnected(true);
       // Ollama status
       if (data.ollama && data.ollama.available) {
         setOllamaConnected(true);
@@ -108,6 +117,7 @@ export default function App() {
         setGroqHasKey(data.groq.has_key);
       }
     } catch (err) {
+      setBackendConnected(false);
       setOllamaConnected(false);
       setOllamaStatusText('API Offline');
       setGroqConnected(false);
@@ -895,7 +905,9 @@ export default function App() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 0', borderBottom: '1px solid var(--glass-border)' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>FastAPI Gateway:</span>
-                  <span style={{ color: 'var(--accent-emerald)', fontWeight: 600 }}>Operational (Port 8000)</span>
+                  <span style={{ color: backendConnected ? 'var(--accent-emerald)' : 'var(--accent-rose)', fontWeight: 600 }}>
+                    {backendConnected ? 'Operational (Port 8000)' : 'Offline / Unreachable'}
+                  </span>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 0', borderBottom: '1px solid var(--glass-border)' }}>
