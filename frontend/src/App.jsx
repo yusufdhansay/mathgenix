@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import MathRenderer from './components/MathRenderer';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+// API Gateway configured dynamically in settings or build-time env
 
 const BLOOMS_CARDS = [
   { level: 'Remember', desc: 'Identify basic facts, mathematical definitions, equations, and formulas.' },
@@ -35,18 +35,38 @@ export default function App() {
   // Navigation State
   const [activeTab, setActiveTab] = useState('workspace'); // workspace, history, settings
 
+  // API Gateway State
+  const [apiUrl, setApiUrl] = useState(() => {
+    const savedUrl = localStorage.getItem('mathgenix_api_url');
+    if (savedUrl) return savedUrl;
+    
+    // Fallback chain
+    if (import.meta.env.VITE_API_BASE_URL) {
+      return import.meta.env.VITE_API_BASE_URL;
+    }
+    
+    if (typeof window !== 'undefined') {
+      const hostname = window.location.hostname;
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return `http://127.0.0.1:8000`;
+      }
+    }
+    return '';
+  });
+  const [apiUrlInput, setApiUrlInput] = useState(apiUrl);
+
   // Connection & Config State
   const [backendConnected, setBackendConnected] = useState(false);
   const [ollamaConnected, setOllamaConnected] = useState(false);
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('llama-3.3-70b-versatile');
-  const [ollamaStatusText, setOllamaStatusText] = useState('Checking...');
+  const [ollamaStatusText, setOllamaStatusText] = useState(apiUrl ? 'Checking...' : 'No API URL');
 
   // Provider State (cloud or local)
   const [provider, setProvider] = useState('groq'); // 'groq' or 'local'
   const [groqModels, setGroqModels] = useState([]);
   const [groqConnected, setGroqConnected] = useState(false);
-  const [groqStatus, setGroqStatus] = useState('Checking...');
+  const [groqStatus, setGroqStatus] = useState(apiUrl ? 'Checking...' : 'No API URL');
   const [groqHasKey, setGroqHasKey] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [savingKey, setSavingKey] = useState(false);
@@ -57,6 +77,7 @@ export default function App() {
   const [extractedText, setExtractedText] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   // Generation Parameters
   const [selectedBloom, setSelectedBloom] = useState('Apply');
@@ -73,8 +94,17 @@ export default function App() {
   // Saved History State
   const [historyDecks, setHistoryDecks] = useState([]);
 
-  // Fetch health, models, and Groq info on mount + setup polling
+  // Fetch health, models, and Groq info on mount + when apiUrl changes + setup polling
   useEffect(() => {
+    if (!apiUrl) {
+      setBackendConnected(false);
+      setOllamaConnected(false);
+      setOllamaStatusText('No API URL');
+      setGroqConnected(false);
+      setGroqStatus('No API URL');
+      return;
+    }
+
     checkHealth();
     fetchModels();
     fetchGroqModels();
@@ -95,11 +125,12 @@ export default function App() {
     }
 
     return () => clearInterval(intervalId);
-  }, []);
+  }, [apiUrl]);
 
   const checkHealth = async () => {
+    if (!apiUrl) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/api/health`);
+      const response = await fetch(`${apiUrl}/api/health`);
       const data = await response.json();
       setBackendConnected(true);
       // Ollama status
@@ -126,8 +157,9 @@ export default function App() {
   };
 
   const fetchModels = async () => {
+    if (!apiUrl) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/api/models`);
+      const response = await fetch(`${apiUrl}/api/models`);
       const data = await response.json();
       setModels(data.models || []);
       if (data.models && data.models.length > 0) {
@@ -154,8 +186,9 @@ export default function App() {
   };
 
   const fetchGroqModels = async () => {
+    if (!apiUrl) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/api/groq-models`);
+      const response = await fetch(`${apiUrl}/api/groq-models`);
       const data = await response.json();
       setGroqModels(data.models || []);
     } catch (err) {
@@ -164,10 +197,11 @@ export default function App() {
   };
 
   const saveGroqApiKey = async () => {
+    if (!apiUrl) return;
     if (!apiKeyInput.trim()) return;
     setSavingKey(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/set-groq-key`, {
+      const response = await fetch(`${apiUrl}/api/set-groq-key`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ api_key: apiKeyInput.trim() }),
@@ -184,6 +218,25 @@ export default function App() {
     } finally {
       setSavingKey(false);
     }
+  };
+
+  const saveApiUrl = () => {
+    let formattedUrl = apiUrlInput.trim();
+    if (!formattedUrl) return;
+    
+    // Remove trailing slash if present
+    if (formattedUrl.endsWith('/')) {
+      formattedUrl = formattedUrl.slice(0, -1);
+    }
+    
+    // Ensure it starts with http:// or https://
+    if (!/^https?:\/\//i.test(formattedUrl)) {
+      formattedUrl = 'https://' + formattedUrl;
+    }
+    
+    setApiUrl(formattedUrl);
+    setApiUrlInput(formattedUrl);
+    localStorage.setItem('mathgenix_api_url', formattedUrl);
   };
 
   // Drag & Drop Handlers
@@ -215,31 +268,36 @@ export default function App() {
 
   // Perform backend file upload and text extraction
   const handleFileUpload = async (uploadedFile) => {
+    if (!apiUrl) return;
     setFile(uploadedFile);
     setUploading(true);
     setUploadSuccess(false);
+    setUploadError('');
     setGenerationError('');
     
     const formData = new FormData();
     formData.append('file', uploadedFile);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/upload`, {
+      const response = await fetch(`${apiUrl}/api/upload`, {
         method: 'POST',
         body: formData,
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to extract text from document');
+        let errorMsg = 'Failed to extract text from document';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.detail || errorMsg;
+        } catch (_) {}
+        throw new Error(errorMsg);
       }
 
       const data = await response.json();
       setExtractedText(data.text);
       setUploadSuccess(true);
     } catch (err) {
-      setGenerationError(err.message);
-      setFile(null);
+      setUploadError(err.message);
     } finally {
       setUploading(false);
     }
@@ -247,13 +305,14 @@ export default function App() {
 
   // Request backend generation of Bloom's math questions
   const triggerGeneration = async () => {
+    if (!apiUrl) return;
     if (!extractedText) return;
     setLoading(true);
     setGenerationError('');
     setCurrentQuestions([]);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/generate`, {
+      const response = await fetch(`${apiUrl}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -404,13 +463,34 @@ export default function App() {
               <p>Upload study materials and use local LLMs to generate high-quality math assessments.</p>
             </header>
 
+            {!apiUrl && (
+              <div className="feedback-box incorrect" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem' }}>
+                <ShieldAlert size={24} style={{ color: 'var(--accent-rose)', flexShrink: 0 }} />
+                <div>
+                  <strong style={{ color: 'var(--accent-rose)' }}>Backend API Connection Required:</strong>
+                  <p style={{ fontSize: '0.9rem', marginTop: '0.2rem', color: 'var(--text-secondary)' }}>
+                    Your frontend is hosted on Vercel, but it does not know where your FastAPI backend is. 
+                    Please click the <strong>Server Status</strong> tab on the sidebar and enter your Render backend URL (e.g. <code>https://your-service.onrender.com</code>).
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="card">
               <h3 className="card-title">
                 <UploadCloud style={{ color: 'var(--accent-primary)' }} />
                 <span>1. Load Document</span>
               </h3>
               
-              {!file ? (
+              {!apiUrl ? (
+                <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center', background: 'rgba(15, 23, 42, 0.4)', borderRadius: '10px', border: '1px dashed var(--glass-border)' }}>
+                  <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.75rem' }}>🔌</span>
+                  <h4 style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Connection Needed</h4>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                    Please configure and connect your backend API under the <strong>Server Status</strong> tab first to enable document upload and question generation.
+                  </p>
+                </div>
+              ) : !file ? (
                 <div 
                   className={`upload-zone ${dragActive ? 'drag-active' : ''}`}
                   onDragEnter={handleDrag}
@@ -450,6 +530,7 @@ export default function App() {
                       setFile(null);
                       setExtractedText('');
                       setUploadSuccess(false);
+                      setUploadError('');
                       setCurrentQuestions([]);
                     }}
                   >
@@ -470,6 +551,16 @@ export default function App() {
                   <CheckCircle2 size={16} />
                   Document processed successfully! Ready to generate.
                 </p>
+              )}
+
+              {uploadError && (
+                <div className="feedback-box incorrect" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1rem', marginBottom: '0' }}>
+                  <XCircle size={20} style={{ color: 'var(--accent-rose)', flexShrink: 0 }} />
+                  <div>
+                    <strong style={{ color: 'var(--accent-rose)' }}>Upload/Extraction Error:</strong>
+                    <p style={{ fontSize: '0.85rem', marginTop: '0.2rem', color: 'var(--text-secondary)' }}>{uploadError}</p>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -851,6 +942,52 @@ export default function App() {
               <h1>Server Status</h1>
               <p>Manage system connections, API keys, and configure platform settings.</p>
             </header>
+
+            {/* API Gateway URL Configuration */}
+            <div className="card">
+              <h3 className="card-title">🌐 API Gateway Configuration</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1rem' }}>
+                Set the URL of your FastAPI backend server. 
+                {window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && (
+                  <span style={{ display: 'block', marginTop: '0.5rem', color: 'var(--accent-secondary)' }}>
+                    💡 Tip: Since you are running in production on Vercel, configure this to your Render URL (e.g. <code>https://your-app.onrender.com</code>).
+                  </span>
+                )}
+              </p>
+
+              <div style={{ marginTop: '1rem' }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>API Gateway URL</span>
+                </label>
+                <div className="api-key-input-group">
+                  <input 
+                    type="text"
+                    className="api-key-input"
+                    placeholder="https://mathgenix-backend.onrender.com"
+                    value={apiUrlInput}
+                    onChange={(e) => setApiUrlInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && saveApiUrl()}
+                  />
+                  <button 
+                    className="btn-save-key"
+                    onClick={saveApiUrl}
+                    disabled={!apiUrlInput.trim()}
+                  >
+                    Save URL
+                  </button>
+                </div>
+                {apiUrl && (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+                    Active Endpoint: <code style={{ color: 'var(--accent-primary)' }}>{apiUrl}</code>
+                  </p>
+                )}
+                {!apiUrl && (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--accent-rose)', marginTop: '0.5rem' }}>
+                    ⚠️ No API URL configured. The app will not be able to generate questions.
+                  </p>
+                )}
+              </div>
+            </div>
 
             {/* Groq Cloud Configuration */}
             <div className="card">
