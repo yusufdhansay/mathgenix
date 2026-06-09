@@ -13,7 +13,7 @@ Verification statuses:
 """
 
 import re
-import signal
+import concurrent.futures
 import sympy
 from sympy import (
     symbols, solve, simplify, N, Eq, oo,
@@ -32,15 +32,6 @@ COMPUTABLE_LEVELS = {"Apply", "Analyze"}
 
 # Timeout for a single verification (seconds)
 VERIFY_TIMEOUT = 3
-
-# ─── Timeout handler (Unix only, safe on macOS) ─────────────────────────────
-
-class VerificationTimeout(Exception):
-    pass
-
-def _timeout_handler(signum, frame):
-    raise VerificationTimeout("Verification timed out")
-
 
 # ─── LaTeX cleaning & parsing ───────────────────────────────────────────────
 
@@ -182,25 +173,15 @@ def extract_equation(question_text: str):
 
 # ─── Single question verification ───────────────────────────────────────────
 
-def verify_single_question(question_obj: dict, taxonomy_level: str) -> str:
+def _verify_single_question_core(question_obj: dict, taxonomy_level: str) -> str:
     """
-    Verifies a single question's answer using SymPy.
-    
-    Returns one of: "verified", "unverified", "skipped", "error"
+    Core verification logic that executes inside a thread.
     """
-    # Skip non-computable Bloom's levels
-    if taxonomy_level not in COMPUTABLE_LEVELS:
-        return "skipped"
-
     answer_str = question_obj.get("answer", "")
     question_str = question_obj.get("question", "")
 
     if not answer_str or not question_str:
         return "error"
-
-    # Set timeout to prevent SymPy from hanging
-    old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-    signal.alarm(VERIFY_TIMEOUT)
 
     try:
         # 1. Parse the claimed answer
@@ -268,13 +249,33 @@ def verify_single_question(question_obj: dict, taxonomy_level: str) -> str:
         # 4. If we couldn't extract anything solvable, mark as error (not unverified)
         return "error"
 
-    except VerificationTimeout:
-        return "error"
     except Exception:
         return "error"
-    finally:
-        signal.alarm(0)  # Cancel the alarm
-        signal.signal(signal.SIGALRM, old_handler)  # Restore old handler
+
+
+def verify_single_question(question_obj: dict, taxonomy_level: str) -> str:
+    """
+    Verifies a single question's answer using SymPy.
+    Runs the verification core inside a threadpool with a timeout, ensuring
+    it is completely thread-safe and cross-platform (works outside main thread).
+    
+    Returns one of: "verified", "unverified", "skipped", "error"
+    """
+    # Skip non-computable Bloom's levels
+    if taxonomy_level not in COMPUTABLE_LEVELS:
+        return "skipped"
+
+    # Run core solver inside a threadpool executor with timeout
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_verify_single_question_core, question_obj, taxonomy_level)
+        try:
+            return future.result(timeout=VERIFY_TIMEOUT)
+        except concurrent.futures.TimeoutError:
+            print(f"⚠️ SymPy Verification timed out after {VERIFY_TIMEOUT}s")
+            return "error"
+        except Exception as e:
+            print(f"⚠️ SymPy Verification raised unexpected exception: {e}")
+            return "error"
 
 
 # ─── Batch verification ─────────────────────────────────────────────────────
