@@ -1,6 +1,6 @@
 # 📚 MathGenix: Advanced AI Math Assessment Hub
 
-MathGenix is a professional, full-stack AI-powered mathematics assessment platform. It enables educators and students to upload study documents (PDF, Word, TXT), extract mathematical concepts, and dynamically generate high-quality math questions aligned with **Bloom's Taxonomy levels** complete with dynamic step-by-step LaTeX solution keys.
+MathGenix is a professional, full-stack AI-powered mathematics assessment platform. It enables educators and students to upload study documents (PDF, Word, TXT) or **photos/images of study materials** (JPG, JPEG, PNG, WEBP, HEIC, HEIF, BMP, TIFF), extract mathematical concepts using AI vision OCR, and dynamically generate high-quality math questions aligned with **Bloom's Taxonomy levels** complete with dynamic step-by-step LaTeX solution keys.
 
 Featuring a high-performance **FastAPI backend** and a premium **React + Vite** glassmorphism single-page frontend, MathGenix supports both **Local Ollama Inference** (offline mode) and **Groq Cloud LPU Inference** (high-speed cloud mode, generating 5 questions in ~3 seconds at 300+ tok/s).
 
@@ -12,20 +12,27 @@ Featuring a high-performance **FastAPI backend** and a premium **React + Vite** 
    * **Cloud Mode (Groq LPU):** Seamlessly routes prompts to Groq's high-speed chips (supporting `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, etc.) generating assessments instantly.
    * **Local Mode (Ollama):** Run completely offline on your local machine using models like `qwen2-math`, `deepseek-r1`, or `llama3`.
    
-2. **High-Fidelity Printable Worksheet View:**
+2. **AI Vision OCR (Scanned Documents & Photos):**
+   * Uses Groq's **Llama 4 Scout** multimodal vision model to extract text from images of study materials — phone photos, scanned textbook pages, and handwritten notes.
+   * Auto-detects scanned/image-only PDF pages and seamlessly falls back to vision OCR when standard text extraction returns empty results.
+   * Handles auto-compression, HEIC/HEIF (iPhone format) conversion, and large image downscaling to stay within API limits.
+   * Supports direct image uploads (JPG, JPEG, PNG, WEBP, HEIC, HEIF, BMP, TIFF) alongside traditional document formats.
+   * **Zero Binary Dependencies**: Avoids heavy C++ system packages (like Tesseract or Poppler/pdf2image) that are difficult to build and run on platforms like Render. It extracts embedded page images directly in Python and processes them via the cloud vision model.
+
+3. **High-Fidelity Printable Worksheet View:**
    * Designed with CSS print media rules to generate professional, clean worksheets via `window.print()` (Export as PDF).
    * Includes custom student worksheet spacing ("Show working here:") and a separate, toggleable **Answer Key / Solution Key** page containing KaTeX step-by-step derivations.
    * Allows exporting assessment decks in structured Markdown format.
 
-3. **Robust LaTeX & Matrix Typesetting:**
+4. **Robust LaTeX & Matrix Typesetting:**
    * Features a custom React `MathRenderer` leveraging KaTeX.
    * Employs backend regex mapping (`sanitize_latex` in `question_generator.py`) to format row breakers (`\\`) and LaTeX commands (`\lambda`, `\frac`) correctly, preventing JSON parser character-stripping bugs and ensuring compatibility with Python 3.13.
 
-4. **Dynamic API Gateway Configuration UI:**
+5. **Dynamic API Gateway Configuration UI:**
    * Built for seamless hosting on platforms like **Vercel** and **Render**.
    * Provides a dynamic API input panel in the **Server Status** (Settings) tab (persisted in `localStorage`) which resolves localhost mixed-content blocks and macOS IPv6 DNS conflicts (`localhost` vs `127.0.0.1`) without rebuilding/redeploying.
 
-5. **Clear Extraction Diagnostics**:
+6. **Clear Extraction Diagnostics**:
    * Immediate file processing diagnostics displayed on card uploads. If a file fails to process, the system displays the error message inside the card instead of resetting the dropzone.
 
 ---
@@ -106,7 +113,8 @@ npm run dev
 ```
 ├── backend/
 │   ├── main.py                 # FastAPI endpoints, CORS middleware, file uploads
-│   ├── document_processor.py   # In-memory document stream reader (PDF, DOCX, TXT)
+│   ├── document_processor.py   # In-memory document stream reader (PDF, DOCX, TXT, Images)
+│   ├── vision_ocr.py           # Groq Vision (Llama 4 Scout) image-to-text extraction
 │   ├── question_generator.py   # Ollama prompt engine & TF-IDF relevance retriever
 │   └── groq_generator.py       # Groq OpenAI-compatible client & model details
 ├── frontend/

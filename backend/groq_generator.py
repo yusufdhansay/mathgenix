@@ -28,9 +28,8 @@ GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # Models available on Groq's free tier
 GROQ_MODELS = [
-    {"id": "llama-3.3-70b-versatile", "name": "Llama 3.3 70B", "description": "Newest & strongest math reasoning"},
-    {"id": "llama-3.1-70b-versatile", "name": "Llama 3.1 70B", "description": "Fast & reliable all-rounder"},
-    {"id": "mixtral-8x7b-32768", "name": "Mixtral 8x7B", "description": "Ultra-fast structured output"},
+    {"id": "llama-3.3-70b-versatile", "name": "Llama 3.3 70B", "description": "Flagship model with strong math reasoning"},
+    {"id": "llama-3.1-8b-instant", "name": "Llama 3.1 8B", "description": "Blazing-fast low-latency completion"},
 ]
 
 

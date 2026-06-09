@@ -159,6 +159,7 @@ async def set_groq_key(request: ApiKeyRequest):
 async def upload_file(file: UploadFile = File(...)):
     """
     Handles file upload, extracts text in memory, and returns the raw text content.
+    For image files and scanned PDFs, uses Groq Vision OCR to extract text.
     """
     filename = file.filename
     if not filename:
@@ -166,8 +167,14 @@ async def upload_file(file: UploadFile = File(...)):
 
     try:
         file_bytes = await file.read()
-        text_content = extract_text_from_bytes(file_bytes, filename)
-        
+
+        # Pass Groq API key for vision OCR (images & scanned PDFs)
+        groq_key = get_groq_api_key()
+        result = extract_text_from_bytes(file_bytes, filename, api_key=groq_key)
+
+        text_content = result["text"]
+        ocr_used = result["ocr_used"]
+
         if not text_content or not text_content.strip():
             raise HTTPException(status_code=400, detail="Document appears to be empty or contains no readable text.")
             
@@ -175,7 +182,8 @@ async def upload_file(file: UploadFile = File(...)):
             "filename": filename,
             "char_count": len(text_content),
             "word_count": len(text_content.split()),
-            "text": text_content
+            "text": text_content,
+            "ocr_used": ocr_used,
         }
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))

@@ -75,6 +75,7 @@ export default function App() {
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [ocrUsed, setOcrUsed] = useState(false);
 
   // Generation Parameters
   const [selectedBloom, setSelectedBloom] = useState('Apply');
@@ -269,6 +270,7 @@ export default function App() {
     setUploadSuccess(false);
     setUploadError('');
     setGenerationError('');
+    setOcrUsed(false);
     
     const formData = new FormData();
     formData.append('file', uploadedFile);
@@ -290,6 +292,7 @@ export default function App() {
 
       const data = await response.json();
       setExtractedText(data.text);
+      setOcrUsed(data.ocr_used || false);
       setUploadSuccess(true);
     } catch (err) {
       setUploadError(err.message);
@@ -496,14 +499,14 @@ export default function App() {
                   <input 
                     id="file-upload-input" 
                     type="file" 
-                    accept=".pdf,.txt,.docx" 
+                    accept=".pdf,.txt,.docx,.jpg,.jpeg,.png,.webp,.heic" 
                     style={{ display: 'none' }} 
                     onChange={handleFileChange}
                   />
                   <span className="upload-icon">📥</span>
                   <h3>Drag & Drop Study Document</h3>
                   <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', fontSize: '0.9rem' }}>
-                    Supports PDF, Word (DOCX), or Text (TXT) files
+                    Supports PDF, Word, Text, and Image files (JPG, PNG)
                   </p>
                   <button className="upload-btn" type="button">Browse Local Files</button>
                 </div>
@@ -525,6 +528,7 @@ export default function App() {
                       setExtractedText('');
                       setUploadSuccess(false);
                       setUploadError('');
+                      setOcrUsed(false);
                       setCurrentQuestions([]);
                     }}
                   >
@@ -543,7 +547,10 @@ export default function App() {
               {uploadSuccess && (
                 <p style={{ color: 'var(--accent-emerald)', fontSize: '0.9rem', fontWeight: 500, marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   <CheckCircle2 size={16} />
-                  Document processed successfully! Ready to generate.
+                  {ocrUsed 
+                    ? '📷 Text extracted via AI Vision OCR! Ready to generate.' 
+                    : 'Document processed successfully! Ready to generate.'
+                  }
                 </p>
               )}
 
