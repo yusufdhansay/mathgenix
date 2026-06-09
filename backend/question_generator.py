@@ -1,5 +1,4 @@
 from .document_processor import get_text_chunks
-from .answer_verifier import verify_question_batch
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
@@ -221,7 +220,7 @@ def sanitize_question_batch(questions: list) -> list:
             ]
     return questions
 
-def generate_questions(text: str, taxonomy_level: str, model_name: str = "llama3", verify: bool = True):
+def generate_questions(text: str, taxonomy_level: str, model_name: str = "llama3"):
     """
     Generates questions based on the provided text and Bloom's Taxonomy level.
     Uses direct Ollama REST API calls — zero LangChain overhead.
@@ -308,12 +307,6 @@ Context:
         if parsed_data and "questions" in parsed_data and len(parsed_data["questions"]) > 0:
             # Sanitize LaTeX (fix broken matrices, missing backslashes, etc.)
             parsed_data["questions"] = sanitize_question_batch(parsed_data["questions"])
-            # Run SymPy verification layer if enabled
-            if verify:
-                print(">>> Running SymPy answer verification...")
-                parsed_data["questions"] = verify_question_batch(
-                    parsed_data["questions"], taxonomy_level
-                )
             return parsed_data
         
         print("!!! JSON PARSING FAILED !!!")

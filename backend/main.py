@@ -40,7 +40,6 @@ class GenerateRequest(BaseModel):
     text: str
     taxonomy_level: str
     model_name: str = "llama3"
-    verify: bool = True
     provider: str = "groq"  # "local" or "groq"
 
 class ApiKeyRequest(BaseModel):
@@ -200,7 +199,6 @@ async def generate_questions_endpoint(request: GenerateRequest):
             taxonomy_level=request.taxonomy_level,
             model_name=request.model_name,
             api_key=api_key,
-            verify=request.verify,
         )
     else:
         # Local generation via Ollama
@@ -208,7 +206,6 @@ async def generate_questions_endpoint(request: GenerateRequest):
             text=request.text,
             taxonomy_level=request.taxonomy_level,
             model_name=request.model_name,
-            verify=request.verify,
         )
     
     if "error" in result:

@@ -10,10 +10,7 @@ import {
   Sparkles, 
   Printer,
   FileDown,
-  ShieldCheck,
   ShieldAlert,
-  ShieldOff,
-  ShieldX,
   Cloud,
   Monitor,
   Key
@@ -88,8 +85,6 @@ export default function App() {
   // PDF Export Option
   const [includeSolutions, setIncludeSolutions] = useState(true);
 
-  // Verification toggle (on by default)
-  const [verifyAnswers, setVerifyAnswers] = useState(true);
 
   // Saved History State
   const [historyDecks, setHistoryDecks] = useState([]);
@@ -319,7 +314,6 @@ export default function App() {
           text: extractedText,
           taxonomy_level: selectedBloom,
           model_name: selectedModel,
-          verify: verifyAnswers,
           provider: provider
         }),
       });
@@ -703,37 +697,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Verify Answers Toggle */}
-                <div className="form-group">
-                  <label 
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '0.6rem', 
-                      cursor: 'pointer', 
-                      userSelect: 'none',
-                      padding: '0.75rem 1rem',
-                      background: verifyAnswers ? 'rgba(16, 185, 129, 0.06)' : 'rgba(15, 23, 42, 0.3)',
-                      border: verifyAnswers ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid var(--glass-border)',
-                      borderRadius: '10px',
-                      transition: 'var(--transition-smooth)'
-                    }}
-                  >
-                    <input 
-                      type="checkbox" 
-                      checked={verifyAnswers} 
-                      onChange={(e) => setVerifyAnswers(e.target.checked)} 
-                      style={{ accentColor: 'var(--accent-emerald)', width: '16px', height: '16px' }}
-                    />
-                    <ShieldCheck size={18} style={{ color: verifyAnswers ? '#34d399' : 'var(--text-muted)' }} />
-                    <div>
-                      <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Verify Answers with SymPy</span>
-                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                        Independently checks each answer using symbolic computation
-                      </span>
-                    </div>
-                  </label>
-                </div>
 
                 {generationError && (
                   <div className="feedback-box incorrect" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -815,22 +778,7 @@ export default function App() {
                           <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--accent-secondary)', fontWeight: 700 }}>
                             Problem {idx + 1} — {q.topic || 'Math Problem'}
                           </span>
-                          {q.verification_status && (
-                            <span className={`verification-badge ${q.verification_status}`}>
-                              <span className="badge-icon">
-                                {q.verification_status === 'verified' && '✅'}
-                                {q.verification_status === 'unverified' && '⚠️'}
-                                {q.verification_status === 'skipped' && '⏭️'}
-                                {q.verification_status === 'error' && '❌'}
-                              </span>
-                              <span>
-                                {q.verification_status === 'verified' && 'Verified'}
-                                {q.verification_status === 'unverified' && 'Unverified'}
-                                {q.verification_status === 'skipped' && 'Conceptual'}
-                                {q.verification_status === 'error' && 'Check Failed'}
-                              </span>
-                            </span>
-                          )}
+
                         </div>
                         <div style={{ fontSize: '1.1rem', margin: '0.75rem 0 1.25rem 0', lineHeight: 1.6 }}>
                           <MathRenderer text={q.question || ''} />
@@ -1116,14 +1064,7 @@ export default function App() {
                 <div key={q.id || idx} className="print-question-card">
                   <div className="print-question-title">
                     Question {idx + 1} — <span className="print-topic">{q.topic || 'Math Problem'}</span>
-                    {q.verification_status && (
-                      <span className={`verification-badge ${q.verification_status}`} style={{ marginLeft: '0.75rem' }}>
-                        {q.verification_status === 'verified' && '✅ Verified'}
-                        {q.verification_status === 'unverified' && '⚠️ Unverified'}
-                        {q.verification_status === 'skipped' && 'Conceptual'}
-                        {q.verification_status === 'error' && '⚠ Check Failed'}
-                      </span>
-                    )}
+
                   </div>
                   <div className="print-question-body">
                     <MathRenderer text={q.question || ''} />

@@ -17,7 +17,6 @@ import json
 import time
 import requests
 from .document_processor import get_text_chunks
-from .answer_verifier import verify_question_batch
 from .question_generator import (
     BLOOMS_INSTRUCTIONS,
     retrieve_relevant_chunks,
@@ -71,7 +70,6 @@ def generate_questions_groq(
     taxonomy_level: str,
     model_name: str = "llama-3.3-70b-versatile",
     api_key: str = "",
-    verify: bool = True,
 ) -> dict:
     """
     Generates math questions using Groq's cloud LPU inference.
@@ -184,12 +182,6 @@ Context:
         if parsed_data and "questions" in parsed_data and len(parsed_data["questions"]) > 0:
             # Sanitize LaTeX (fix broken matrices, missing backslashes, etc.)
             parsed_data["questions"] = sanitize_question_batch(parsed_data["questions"])
-            # Run SymPy verification if enabled
-            if verify:
-                print(">>> [GROQ] Running SymPy answer verification...")
-                parsed_data["questions"] = verify_question_batch(
-                    parsed_data["questions"], taxonomy_level
-                )
             return parsed_data
 
         # Try direct JSON parse as fallback (Groq's json_object mode is very reliable)
@@ -197,10 +189,6 @@ Context:
             parsed_data = extract_json(raw_text)
             if parsed_data and "questions" in parsed_data and len(parsed_data["questions"]) > 0:
                 parsed_data["questions"] = sanitize_question_batch(parsed_data["questions"])
-                if verify:
-                    parsed_data["questions"] = verify_question_batch(
-                        parsed_data["questions"], taxonomy_level
-                    )
                 return parsed_data
         except Exception:
             pass

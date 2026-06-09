@@ -1,6 +1,6 @@
 # 📚 MathGenix: Advanced AI Math Assessment Hub
 
-MathGenix is a professional, full-stack AI-powered mathematics assessment platform. It enables educators and students to upload study documents (PDF, Word, TXT), extract mathematical concepts, and dynamically generate high-quality math questions aligned with **Bloom's Taxonomy levels** complete with dynamic step-by-step LaTeX solution keys and automated symbolic validation.
+MathGenix is a professional, full-stack AI-powered mathematics assessment platform. It enables educators and students to upload study documents (PDF, Word, TXT), extract mathematical concepts, and dynamically generate high-quality math questions aligned with **Bloom's Taxonomy levels** complete with dynamic step-by-step LaTeX solution keys.
 
 Featuring a high-performance **FastAPI backend** and a premium **React + Vite** glassmorphism single-page frontend, MathGenix supports both **Local Ollama Inference** (offline mode) and **Groq Cloud LPU Inference** (high-speed cloud mode, generating 5 questions in ~3 seconds at 300+ tok/s).
 
@@ -12,28 +12,20 @@ Featuring a high-performance **FastAPI backend** and a premium **React + Vite** 
    * **Cloud Mode (Groq LPU):** Seamlessly routes prompts to Groq's high-speed chips (supporting `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, etc.) generating assessments instantly.
    * **Local Mode (Ollama):** Run completely offline on your local machine using models like `qwen2-math`, `deepseek-r1`, or `llama3`.
    
-2. **Automated SymPy Verification Engine:**
-   * Uses Python's symbolic mathematics library (**SymPy**) to mathematically verify the accuracy of the generated solutions.
-   * Displays dynamic verification badges:
-     * `✅ Verified`: Symbolic validation confirmed the answer matches the solution steps.
-     * `⚠️ Unverified`: LLM output was mathematically sound but could not be parsed by SymPy.
-     * `⏭️ Conceptual`: Non-numerical / conceptual problem (verification skipped).
-     * `❌ Check Failed`: Validation failed (checks warning output for teacher review).
-
-3. **High-Fidelity Printable Worksheet View:**
+2. **High-Fidelity Printable Worksheet View:**
    * Designed with CSS print media rules to generate professional, clean worksheets via `window.print()` (Export as PDF).
    * Includes custom student worksheet spacing ("Show working here:") and a separate, toggleable **Answer Key / Solution Key** page containing KaTeX step-by-step derivations.
    * Allows exporting assessment decks in structured Markdown format.
 
-4. **Robust LaTeX & Matrix Typesetting:**
+3. **Robust LaTeX & Matrix Typesetting:**
    * Features a custom React `MathRenderer` leveraging KaTeX.
    * Employs backend regex mapping (`sanitize_latex` in `question_generator.py`) to format row breakers (`\\`) and LaTeX commands (`\lambda`, `\frac`) correctly, preventing JSON parser character-stripping bugs and ensuring compatibility with Python 3.13.
 
-5. **Dynamic API Gateway Configuration UI:**
+4. **Dynamic API Gateway Configuration UI:**
    * Built for seamless hosting on platforms like **Vercel** and **Render**.
    * Provides a dynamic API input panel in the **Server Status** (Settings) tab (persisted in `localStorage`) which resolves localhost mixed-content blocks and macOS IPv6 DNS conflicts (`localhost` vs `127.0.0.1`) without rebuilding/redeploying.
 
-6. **Clear Extraction Diagnostics**:
+5. **Clear Extraction Diagnostics**:
    * Immediate file processing diagnostics displayed on card uploads. If a file fails to process, the system displays the error message inside the card instead of resetting the dropzone.
 
 ---
@@ -116,8 +108,7 @@ npm run dev
 │   ├── main.py                 # FastAPI endpoints, CORS middleware, file uploads
 │   ├── document_processor.py   # In-memory document stream reader (PDF, DOCX, TXT)
 │   ├── question_generator.py   # Ollama prompt engine & TF-IDF relevance retriever
-│   ├── groq_generator.py       # Groq OpenAI-compatible client & model details
-│   └── answer_verifier.py      # Symbolic computation engine using SymPy
+│   └── groq_generator.py       # Groq OpenAI-compatible client & model details
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
