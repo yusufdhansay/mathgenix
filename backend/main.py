@@ -41,6 +41,7 @@ class GenerateRequest(BaseModel):
     taxonomy_level: str
     model_name: str = "llama3"
     provider: str = "groq"  # "local" or "groq"
+    previous_topics: List[str] = []  # Topics from prior generations to avoid repeats
 
 class ApiKeyRequest(BaseModel):
     api_key: str
@@ -207,6 +208,7 @@ async def generate_questions_endpoint(request: GenerateRequest):
             taxonomy_level=request.taxonomy_level,
             model_name=request.model_name,
             api_key=api_key,
+            previous_topics=request.previous_topics,
         )
     else:
         # Local generation via Ollama
@@ -214,6 +216,7 @@ async def generate_questions_endpoint(request: GenerateRequest):
             text=request.text,
             taxonomy_level=request.taxonomy_level,
             model_name=request.model_name,
+            previous_topics=request.previous_topics,
         )
     
     if "error" in result:

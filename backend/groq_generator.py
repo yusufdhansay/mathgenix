@@ -69,6 +69,7 @@ def generate_questions_groq(
     taxonomy_level: str,
     model_name: str = "llama-3.3-70b-versatile",
     api_key: str = "",
+    previous_topics: list = None,
 ) -> dict:
     """
     Generates math questions using Groq's cloud LPU inference.
@@ -92,6 +93,16 @@ def generate_questions_groq(
     except Exception as e:
         return {"error": f"Error processing document context: {str(e)}"}
 
+    # Build exclusion instruction if previous topics exist
+    exclusion_instruction = ""
+    if previous_topics:
+        topic_list = "; ".join(f'"{t}"' for t in previous_topics)
+        exclusion_instruction = (
+            f"\nCRITICAL UNIQUENESS RULE: The user has already generated questions on these topics: [{topic_list}]. "
+            f"You MUST generate questions on COMPLETELY DIFFERENT topics, sub-topics, and formulas from the context. "
+            f"Do NOT repeat, rephrase, or reuse any of the above topics. Pick fresh mathematical concepts.\n"
+        )
+
     # Richer prompt for cloud — 70B models can follow complex instructions reliably
     prompt = f"""Generate exactly 5 math questions at Bloom's Taxonomy level "{taxonomy_level}".
 
@@ -114,7 +125,7 @@ Content rules:
 - Provide exactly 2 concise solution steps per question (1 sentence each)
 - {level_instruction}
 - CRITICAL: Base the questions strictly and exclusively on the mathematical topics and formulas found in the provided Context. Do not generate unrelated topics.
-
+{exclusion_instruction}
 Context:
 {context_text}"""
 
@@ -131,7 +142,7 @@ Context:
                     "content": prompt,
                 }
             ],
-            "temperature": 0.1,
+            "temperature": 0.5,
             "max_tokens": 2048,
             "response_format": {"type": "json_object"},
         }

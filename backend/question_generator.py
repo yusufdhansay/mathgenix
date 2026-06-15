@@ -128,28 +128,34 @@ def extract_json(text: str):
 
 def sanitize_latex(text: str) -> str:
     """
-    Post-processes parsed question/answer strings to repair common LaTeX 
-    breakage caused by JSON escaping — especially for matrices.
+    Backend post-processor for LaTeX text coming from LLM JSON output.
     
-    After JSON parsing, the Python string should contain:
-      - \\begin{...} / \\end{...}  (one backslash + command)
-      - \\\\  (two backslashes = LaTeX row separator)
-      - &  (column separator)
+    Focuses on reliable, deterministic fixes:
+      1. Double-escaped backslashes from JSON (\\\\frac → \\frac)
+      2. Missing backslashes on known LaTeX commands (frac{ → \\frac{)
+      3. Matrix environment row separators
+      4. Matrix environments missing $$ wrappers
     
-    This function fixes cases where these are mangled.
+    NOTE: Smart $ delimiter fixing (currency detection, mixed content splitting,
+    bare command wrapping) is handled by the frontend MathRenderer, which has
+    access to KaTeX and can make render-time decisions.
     """
     if not text:
         return text
 
-    # 1. Fix missing \ before begin/end environment commands
-    text = re.sub(r'(?<!\\)begin\{', lambda m: '\\begin{', text)
-    text = re.sub(r'(?<!\\)end\{', lambda m: '\\end{', text)
+    # ── Phase 0: Fix double-escaped backslashes from JSON parsing ────
+    text = re.sub(r'\\\\(frac|sqrt|sum|prod|int|lim|sin|cos|tan|cot|sec|csc|'
+                  r'alpha|beta|gamma|delta|theta|lambda|pi|infty|partial|nabla|'
+                  r'cdot|times|div|text|mathrm|mathbf|left|right|log|ln|det|max|min|'
+                  r'begin|end|over|quad|qquad|hat|bar|vec|dot|ddot|tilde|pm|mp|leq|geq|'
+                  r'neq|approx|equiv|pmod|bmod|binom|displaystyle)', 
+                  r'\\\1', text)
 
-    # 2. Fix double-escaped \begin and \end (\\begin → \begin)
-    text = re.sub(r'\\\\begin\{', lambda m: '\\begin{', text)
-    text = re.sub(r'\\\\end\{', lambda m: '\\end{', text)
-    
-    # 3. Fix row separators inside matrix environments
+    # ── Phase 1: Fix begin/end environment commands ──────────────────
+    text = re.sub(r'(?<!\\)begin\{', r'\\begin{', text)
+    text = re.sub(r'(?<!\\)end\{', r'\\end{', text)
+
+    # ── Phase 2: Fix matrix row separators ───────────────────────────
     matrix_envs = ['bmatrix', 'pmatrix', 'vmatrix', 'matrix', 'Bmatrix', 'Vmatrix', 'cases']
     for env in matrix_envs:
         pattern = r'(\\begin\{' + env + r'\})([\s\S]*?)(\\end\{' + env + r'\})'
@@ -161,28 +167,18 @@ def sanitize_latex(text: str) -> str:
             
             def replace_slashes(m):
                 val = m.group(0)
-                start, end = m.span()
+                end_pos = m.end()
                 full_string = m.string
-                next_char = full_string[end:end+1] if end < len(full_string) else ''
-                
+                next_char = full_string[end_pos:end_pos+1] if end_pos < len(full_string) else ''
                 n = len(val)
-                if n % 2 == 1:  # Odd number of backslashes
-                    if next_char.isalpha():
-                        if n == 1:
-                            return '\\'
-                        else:
-                            return '\\\\\\'
-                    else:
-                        return '\\\\'
-                else:  # Even number of backslashes
-                    return '\\\\'
-
+                if n % 2 == 1:
+                    return '\\' if (n == 1 and next_char.isalpha()) else '\\\\'
+                return '\\\\'
             sanitized_content = re.sub(r'\\+', replace_slashes, content)
             return begin_tag + sanitized_content + end_tag
-
         text = re.sub(pattern, replace_matrix, text)
 
-    # 4. Fix common LaTeX commands that lost their backslash
+    # ── Phase 3: Fix missing backslash on bare LaTeX commands ────────
     latex_commands = [
         'frac', 'sqrt', 'sum', 'prod', 'int', 'lim',
         'sin', 'cos', 'tan', 'cot', 'sec', 'csc',
@@ -190,11 +186,12 @@ def sanitize_latex(text: str) -> str:
         'infty', 'partial', 'nabla', 'cdot', 'times', 'div',
         'text', 'mathrm', 'mathbf', 'left', 'right',
         'log', 'ln', 'det', 'max', 'min',
+        'over', 'pm', 'mp', 'leq', 'geq', 'neq', 'approx', 'equiv',
     ]
     for cmd in latex_commands:
         text = re.sub(r'(?<!\\)\b' + cmd + r'(?=[\s{(])', lambda m, c=cmd: '\\' + c, text)
 
-    # 5. Ensure matrix environments have $$ delimiters if missing
+    # ── Phase 4: Ensure matrix environments have $$ delimiters ───────
     for env in matrix_envs:
         text = re.sub(
             r'(?<!\$)(\\begin\{' + env + r'\}[\s\S]*?\\end\{' + env + r'\})(?!\$)',
@@ -220,7 +217,7 @@ def sanitize_question_batch(questions: list) -> list:
             ]
     return questions
 
-def generate_questions(text: str, taxonomy_level: str, model_name: str = "llama3"):
+def generate_questions(text: str, taxonomy_level: str, model_name: str = "llama3", previous_topics: list = None):
     """
     Generates questions based on the provided text and Bloom's Taxonomy level.
     Uses direct Ollama REST API calls — zero LangChain overhead.
@@ -241,6 +238,15 @@ def generate_questions(text: str, taxonomy_level: str, model_name: str = "llama3
     except Exception as e:
         return {"error": f"Error processing document context: {str(e)}"}
 
+    # Build exclusion instruction if previous topics exist
+    exclusion_instruction = ""
+    if previous_topics:
+        topic_list = "; ".join(f'"{t}"' for t in previous_topics)
+        exclusion_instruction = (
+            f"\nDo NOT generate questions on these already-used topics: [{topic_list}]. "
+            f"Pick DIFFERENT topics from the context.\n"
+        )
+
     # Ultra-compact prompt — every token saved = faster generation on M1
     prompt = f"""Generate exactly 3 math questions at Bloom's level "{taxonomy_level}". Return ONLY raw JSON, no markdown.
 
@@ -259,7 +265,7 @@ Content rules:
 - Include all values needed to solve inside the question
 - Exactly 2 short solution steps per question (1 sentence each)
 - {level_instruction}
-
+{exclusion_instruction}
 Context:
 {context_text}"""
 
@@ -271,7 +277,7 @@ Context:
             "format": "json",
             "stream": False,
             "options": {
-                "temperature": 0.1,
+                "temperature": 0.5,
                 "num_ctx": 2048,        # Small context window → stays in Metal VRAM
                 "num_predict": 1024,    # Cap output tokens (3 questions ≈ 600 tokens)
             }

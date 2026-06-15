@@ -82,6 +82,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [generationError, setGenerationError] = useState('');
   const [currentQuestions, setCurrentQuestions] = useState([]); // Array of generated question objects
+  const [generatedTopicsHistory, setGeneratedTopicsHistory] = useState([]); // Track previously generated topics for uniqueness
 
   // PDF Export Option
   const [includeSolutions, setIncludeSolutions] = useState(true);
@@ -271,6 +272,7 @@ export default function App() {
     setUploadError('');
     setGenerationError('');
     setOcrUsed(false);
+    setGeneratedTopicsHistory([]); // Reset topic history for new document
     
     const formData = new FormData();
     formData.append('file', uploadedFile);
@@ -317,7 +319,8 @@ export default function App() {
           text: extractedText,
           taxonomy_level: selectedBloom,
           model_name: selectedModel,
-          provider: provider
+          provider: provider,
+          previous_topics: generatedTopicsHistory
         }),
       });
 
@@ -338,6 +341,12 @@ export default function App() {
       }
 
       setCurrentQuestions(questionSet);
+
+      // Accumulate topics for deduplication on next generation
+      const newTopics = questionSet
+        .map(q => q.topic)
+        .filter(t => t && t.trim());
+      setGeneratedTopicsHistory(prev => [...prev, ...newTopics]);
 
       // Save to local history
       const newDeck = {
