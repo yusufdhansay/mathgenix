@@ -122,9 +122,11 @@ Content rules:
 - Generate exactly 5 questions, each on a DIFFERENT mathematical topic from the context
 - Every question must be mathematically correct — verify your arithmetic before outputting
 - Include all numerical values needed to solve inside the question text
+- SOLVABILITY CHECK before finalizing each question: (a) are all variables/parameters needed to solve it explicitly stated (e.g. the order n in an nth-derivative problem, the sample size in a probability problem)? (b) is every expression dimensionally valid — never add or equate a scalar with a vector, never equate a single discrete outcome to a fraction of a total count? If a question fails either check, silently rewrite it before including it in the output.
+- BLOOM'S TIER CHECK before finalizing each question: re-read the target level's rule below and confirm the actual SOLVE STEP required (not just the question's wording or scenario) matches that cognitive tier. A question that merely uses tier-appropriate vocabulary but is solved with a lower-tier method (e.g. a single formula lookup dressed up as "evaluate" or "create") must be rewritten or discarded.
 - Provide exactly 2 concise solution steps per question (1 sentence each)
 - {level_instruction}
-- CRITICAL: Base the questions strictly and exclusively on the mathematical topics and formulas found in the provided Context. Do not generate unrelated topics.
+- CRITICAL: Base the questions strictly and exclusively on the mathematical topics and formulas found in the provided Context. Do not generate unrelated topics. If the Context does not contain enough material to responsibly write a question at the requested level, generate fewer than 5 questions rather than inventing formulas not present in the Context.
 {exclusion_instruction}
 Context:
 {context_text}"""

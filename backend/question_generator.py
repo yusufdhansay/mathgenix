@@ -14,9 +14,24 @@ BLOOMS_INSTRUCTIONS = {
     "Remember": "REMEMBER: Ask recall-only questions about definitions, formulas, or theorems explicitly stated in the context. E.g., state a formula or identify a term from the text. Do not ask for multi-step calculations.",
     "Understand": "UNDERSTAND: Ask conceptual questions requiring explanation or interpretation of ideas from the context. E.g., explain what a term means in the context of the text, or translate a relation described in the text into an equation.",
     "Apply": "APPLY: Ask procedural questions where the user must apply a formula or algorithm present in the context to solve a problem with given values. E.g., compute a value using a formula from the text. Do not generate unrelated topics like compound interest or quadratic equations unless they are in the context.",
-    "Analyze": "ANALYZE: Ask breakdown questions based on the context. E.g., identify an error in a worked solution of a concept from the text, or compare two methods described in the text.",
+    "Analyze": (
+        "ANALYZE: The question must require the student to break a problem into parts, find an "
+        "error in a worked solution, or compare two methods from the context — NOT execute a "
+        "single formula lookup. FORBIDDEN: applying one theorem/transform directly to get a single "
+        "numeric answer (that is Apply, not Analyze). REQUIRED PATTERN: present a scenario with "
+        "multiple parts/cases, OR a flawed worked solution, and ask the student to identify which "
+        "part fails, why, or how two methods from the context differ in result or applicability."
+    ),
     "Evaluate": "EVALUATE: Ask justification or assessment questions based on the context. E.g., justify why a theorem from the text holds under certain conditions, or evaluate which method from the text is more efficient.",
-    "Create": "CREATE: Ask synthesis questions where the user must construct a new model, word problem, or system based on the rules and concepts in the context."
+    "Create": (
+        "CREATE: The act of SOLVING the question (not just its existence as a word problem) must "
+        "require the student to construct something new: derive a general formula for a class of "
+        "problems, design a multi-constraint scenario, or synthesize a method from two or more "
+        "concepts in the context. FORBIDDEN: 'create a word problem about X' where the underlying "
+        "solve is a single one-line formula (e.g. probability = favorable/total, or simple "
+        "substitution). If a student could answer it in one arithmetic step, it is NOT a valid "
+        "Create question regardless of the scenario wrapper — discard it and generate a different one."
+    ),
 }
 
 
@@ -263,6 +278,8 @@ Content rules:
 - 3 questions, each on a different topic from the context
 - Verify arithmetic correctness before outputting
 - Include all values needed to solve inside the question
+- Before finalizing each question, check: (a) are all variables/parameters needed to solve it explicitly given (e.g. the order n in an nth-derivative problem)? (b) are all terms being combined dimensionally consistent (never add a scalar to a vector, never equate a single item to a fraction of a count)? If either check fails, rewrite the question so it passes.
+- The question must match the cognitive demand described below, not just use its vocabulary — re-read {taxonomy_level}'s rule and confirm the SOLVE STEP (not the wording) fits it
 - Exactly 2 short solution steps per question (1 sentence each)
 - {level_instruction}
 {exclusion_instruction}
