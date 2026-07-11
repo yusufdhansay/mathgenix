@@ -272,6 +272,25 @@ def sanitize_latex(text: str) -> str:
             text,
         )
 
+    # ── Phase 3e: Digit glued directly to a command name, e.g. "2pi" ─────
+    # "\b" never fires between a digit and a letter, so standalone "pi" gets
+    # fixed by Phase 3 but "2pi" (extremely common: 2π, 3σ, 10θ...) does not.
+    # Safe to de-boundary here because no real English word is ever a digit
+    # immediately followed by a math command name (no false-positive risk).
+    text = re.sub(
+        r'(?<=\d)(' + LATEX_CMD_ALTERNATION + r')' + _lookahead,
+        lambda m: '\\' + m.group(1),
+        text,
+    )
+
+    # ── Phase 3f: Non-standard commands KaTeX has no symbol for ──────────
+    # \curl is not a real (KaTeX or standard LaTeX) macro — no amount of
+    # backslash-repair fixes it, since the problem isn't a missing backslash,
+    # it's that the command itself doesn't exist. Substitute it for something
+    # KaTeX can actually render instead of letting it fail and fall back to
+    # raw text on-screen.
+    text = re.sub(r'\\curl\b', r'\\operatorname{curl}', text)
+
     # ── Phase 4: Ensure matrix environments have $$ delimiters ───────
     for env in matrix_envs:
         text = re.sub(
