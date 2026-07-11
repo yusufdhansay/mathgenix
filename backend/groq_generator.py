@@ -121,12 +121,12 @@ CRITICAL LaTeX formatting rules:
 Content rules:
 - Generate exactly 5 questions, each on a DIFFERENT mathematical topic from the context
 - Every question must be mathematically correct — verify your arithmetic before outputting
-- Include all numerical values needed to solve inside the question text
-- SOLVABILITY CHECK before finalizing each question: (a) are all variables/parameters needed to solve it explicitly stated (e.g. the order n in an nth-derivative problem, the sample size in a probability problem)? (b) is every expression dimensionally valid — never add or equate a scalar with a vector, never equate a single discrete outcome to a fraction of a total count? If a question fails either check, silently rewrite it before including it in the output.
-- BLOOM'S TIER CHECK before finalizing each question: re-read the target level's rule below and confirm the actual SOLVE STEP required (not just the question's wording or scenario) matches that cognitive tier. A question that merely uses tier-appropriate vocabulary but is solved with a lower-tier method (e.g. a single formula lookup dressed up as "evaluate" or "create") must be rewritten or discarded.
+- Include all numerical values AND parameters needed to solve inside the question text (e.g. state n for nth-derivative problems)
+- Never combine mismatched types in one expression (e.g. do not add a scalar to a vector, do not equate a single item to a fraction of a count)
+- The question's actual solve step, not just its wording, must match the target Bloom's level below
 - Provide exactly 2 concise solution steps per question (1 sentence each)
 - {level_instruction}
-- CRITICAL: Base the questions strictly and exclusively on the mathematical topics and formulas found in the provided Context. Do not generate unrelated topics. If the Context does not contain enough material to responsibly write a question at the requested level, generate fewer than 5 questions rather than inventing formulas not present in the Context.
+- CRITICAL: Base questions strictly on the mathematical topics/formulas in the Context. If the Context lacks enough material, output fewer than 5 questions rather than inventing formulas.
 {exclusion_instruction}
 Context:
 {context_text}"""
