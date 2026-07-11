@@ -133,6 +133,51 @@ def extract_json(text: str):
 
 
 
+# Single source of truth for every LaTeX command sanitize_latex knows about.
+# Previously this list was duplicated (and inconsistently maintained) across
+# Phase 0 and Phase 3 separately, which is why fixes kept failing to stick —
+# a command added in one phase was often missing from the other. Defining it
+# once here means every phase automatically stays in sync.
+#
+# Deliberately EXCLUDES tokens that collide with common English words even
+# though they are valid LaTeX commands (e.g. 'to', 'in', 'big', 'over', 'top',
+# 'star', 'square', 'triangle', 'angle', 'dim') — auto-inserting a backslash
+# into ordinary prose containing those words would corrupt the question text.
+LATEX_COMMANDS_MASTER = [
+    # Greek (lower) — none of these collide with real English words
+    'varepsilon', 'vartheta', 'varsigma', 'varrho', 'varphi', 'varpi',
+    'alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta', 'iota',
+    'kappa', 'lambda', 'mu', 'nu', 'xi', 'omicron', 'pi', 'rho', 'sigma', 'tau',
+    'upsilon', 'phi', 'chi', 'psi', 'omega',
+    # Greek (upper)
+    'Gamma', 'Delta', 'Theta', 'Lambda', 'Xi', 'Pi', 'Sigma', 'Upsilon', 'Phi', 'Psi', 'Omega',
+    # calculus / operators
+    'frac', 'sqrt', 'sum', 'prod', 'oint', 'iiint', 'iint', 'int', 'lim',
+    'max', 'min', 'det', 'gcd', 'lcm', 'deg', 'log', 'ln', 'exp',
+    'sinh', 'cosh', 'tanh', 'coth', 'arcsin', 'arccos', 'arctan', 'sin', 'cos', 'tan',
+    'cot', 'sec', 'csc', 'partial', 'nabla', 'curl',
+    'cdot', 'times', 'circ', 'oplus', 'ominus', 'otimes', 'odot',
+    # relations
+    'leq', 'geq', 'neq', 'approx', 'equiv', 'propto', 'simeq', 'sim', 'cong', 'perp',
+    'parallel', 'subseteq', 'subset', 'supseteq', 'supset', 'notin', 'ni',
+    'forall', 'exists', 'emptyset', 'varnothing',
+    # arrows (only the distinctive multi-letter forms; bare "to" is excluded)
+    'rightarrow', 'leftrightarrow', 'leftarrow', 'Rightarrow', 'Leftrightarrow',
+    'Leftarrow', 'mapsto',
+    # delimiters / sizing
+    'left', 'right',
+    # formatting
+    'mathrm', 'mathbf', 'mathit', 'mathcal', 'mathbb', 'boldsymbol', 'text',
+    'overline', 'underline', 'widehat', 'widetilde', 'hat', 'bar', 'vec', 'ddot', 'dot', 'tilde',
+    # misc — distinctive tokens, low collision risk
+    'binom', 'infty', 'aleph', 'hbar', 'ell', 'pm', 'mp',
+    'begin', 'end', 'displaystyle', 'quad', 'qquad',
+]
+# Longest-first so alternation/lookahead prefers e.g. "sinh" over "sin"
+LATEX_COMMANDS_SORTED = sorted(set(LATEX_COMMANDS_MASTER), key=len, reverse=True)
+LATEX_CMD_ALTERNATION = '|'.join(re.escape(c) for c in LATEX_COMMANDS_SORTED)
+
+
 def sanitize_latex(text: str) -> str:
     """
     Backend post-processor for LaTeX text coming from LLM JSON output.
@@ -151,12 +196,7 @@ def sanitize_latex(text: str) -> str:
         return text
 
     # ── Phase 0: Fix double-escaped backslashes from JSON parsing ────
-    text = re.sub(r'\\\\(frac|sqrt|sum|prod|int|lim|sin|cos|tan|cot|sec|csc|'
-                  r'alpha|beta|gamma|delta|theta|lambda|pi|infty|partial|nabla|'
-                  r'cdot|times|div|text|mathrm|mathbf|left|right|log|ln|det|max|min|'
-                  r'begin|end|over|quad|qquad|hat|bar|vec|dot|ddot|tilde|pm|mp|leq|geq|'
-                  r'neq|approx|equiv|pmod|bmod|binom|displaystyle)', 
-                  r'\\\1', text)
+    text = re.sub(r'\\\\(' + LATEX_CMD_ALTERNATION + r')', r'\\\1', text)
 
     # ── Phase 1: Fix begin/end environment commands ──────────────────
     text = re.sub(r'(?<!\\)begin\{', r'\\begin{', text)
@@ -186,17 +226,51 @@ def sanitize_latex(text: str) -> str:
         text = re.sub(pattern, replace_matrix, text)
 
     # ── Phase 3: Fix missing backslash on bare LaTeX commands ────────
-    latex_commands = [
-        'frac', 'sqrt', 'sum', 'prod', 'int', 'lim',
-        'sin', 'cos', 'tan', 'cot', 'sec', 'csc',
-        'alpha', 'beta', 'gamma', 'delta', 'theta', 'lambda', 'pi',
-        'infty', 'partial', 'nabla', 'cdot', 'times', 'div',
-        'text', 'mathrm', 'mathbf', 'left', 'right',
-        'log', 'ln', 'det', 'max', 'min',
-        'over', 'pm', 'mp', 'leq', 'geq', 'neq', 'approx', 'equiv',
-    ]
-    for cmd in latex_commands:
-        text = re.sub(r'(?<!\\)\b' + cmd + r'(?=[\s{(])', lambda m, c=cmd: '\\' + c, text)
+    # Lookahead accepts normal delimiters/punctuation/end-of-string OR the
+    # start of ANOTHER known command. That second option is what makes this
+    # catch "sinleft(" — without it, "sin" is never matched because nothing
+    # follows it except the letter "l", which used to look like plain text.
+    _lookahead = (r'(?=[\s{}()\[\]$^_.,;:!?\\]|(?:' + LATEX_CMD_ALTERNATION + r')|$)')
+    for cmd in LATEX_COMMANDS_SORTED:
+        pattern = r'(?<!\\)\b' + re.escape(cmd) + _lookahead
+        text = re.sub(pattern, lambda m, c=cmd: '\\' + c, text)
+
+    # ── Phase 3b: Split glued commands, e.g. "\sinleft" → "\sin\left",  ──
+    # "\nablaphi" → "\nabla\phi". Phase 3 above can only match the FIRST
+    # command in a glued run (it has a real word boundary before it); the
+    # second command has no boundary of its own since it's glued directly
+    # onto the first. This anchors on "immediately after an already-
+    # backslashed command" instead, which never fires on ordinary prose.
+    _chain_pattern = re.compile(
+        r'\\(' + LATEX_CMD_ALTERNATION + r')(' + LATEX_CMD_ALTERNATION + r')(?![a-zA-Z])'
+    )
+    for _ in range(4):  # fixpoint loop for chains of 3+ glued commands
+        new_text = _chain_pattern.sub(r'\\\1\\\2', text)
+        if new_text == text:
+            break
+        text = new_text
+
+    # ── Phase 3c: Single-letter function name glued to left(/right) ──────
+    # Handles "uleft(t)" → "u\left(t)" and "uright)" → "u\right)" — the
+    # letter is a variable name (e.g. the unit step function u(t)), not a
+    # command, so it must NOT get a backslash itself. The lookahead requires
+    # an immediately-adjacent paren (no space), which real English words
+    # essentially never do, so this can't misfire on prose like "Wright".
+    text = re.sub(r'(?<!\\)\b([a-zA-Z])left(?=\()', r'\1\\left', text)
+    text = re.sub(r'(?<!\\)\b([a-zA-Z])right(?=\))', r'\1\\right', text)
+
+    # ── Phase 3d: Single-letter coefficient glued to an accent command ───
+    # Handles vector-calculus notation like "xhat{i}" -> "x\hat{i}" and
+    # "yvec{r}" -> "y\vec{r}" (a coefficient directly followed by \hat{},
+    # \vec{}, \bar{}, \tilde{} etc). Requiring an immediate "{" right after
+    # the command name is the safety net — no English word is ever directly
+    # followed by "{", so this cannot misfire on prose.
+    for _accent in ('widehat', 'widetilde', 'hat', 'bar', 'vec', 'ddot', 'dot', 'tilde'):
+        text = re.sub(
+            r'(?<!\\)\b([a-zA-Z])' + _accent + r'(?=\{)',
+            lambda m, a=_accent: m.group(1) + '\\' + a,
+            text,
+        )
 
     # ── Phase 4: Ensure matrix environments have $$ delimiters ───────
     for env in matrix_envs:
