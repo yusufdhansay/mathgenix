@@ -20,9 +20,14 @@ BLOOMS_INSTRUCTIONS = {
     ),
     "Evaluate": "EVALUATE: Ask justification or assessment questions based on the context. E.g., justify why a theorem from the text holds under certain conditions, or evaluate which method from the text is more efficient.",
     "Create": (
-        "CREATE: The solve step must require constructing something new — a general formula, a "
-        "multi-constraint design, or a synthesis of 2+ concepts from the context. NOT a scenario "
-        "wrapped around a one-line formula like probability = favorable/total."
+        "CREATE: Questions MUST require the student to CONSTRUCT, DERIVE, DESIGN, or SYNTHESIZE something new. "
+        "STRICTLY FORBIDDEN pattern: 'Find the [transform/derivative/integral] of [function]' — that is Apply level, NOT Create. "
+        "CORRECT Create-level patterns: "
+        "(1) 'Derive the relationship between [concept A] and [concept B] starting from their definitions' "
+        "(2) 'Construct a function f(x) that satisfies BOTH [constraint 1] AND [constraint 2] simultaneously' "
+        "(3) 'Combine [theorem 1] with [theorem 2] to develop a general formula for [new result]' "
+        "(4) 'Design a [system/signal/function] that achieves [goal] using concepts from the context' "
+        "The question must force the student to BUILD something original, not just compute a known formula."
     ),
 }
 
