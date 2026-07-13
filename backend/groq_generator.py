@@ -33,8 +33,15 @@ GROQ_MODELS = [
 ]
 
 
+import os
+from dotenv import load_dotenv
+
 def get_groq_api_keys() -> list:
     """Returns a list of Groq API keys from the environment."""
+    # Force reload .env so manual edits take effect instantly without server restart
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+    load_dotenv(dotenv_path=env_path, override=True)
+    
     keys_str = os.environ.get("GROQ_API_KEYS", os.environ.get("GROQ_API_KEY", ""))
     return [k.strip() for k in keys_str.split(",") if k.strip() and k.strip() != "your_key_here"]
 
