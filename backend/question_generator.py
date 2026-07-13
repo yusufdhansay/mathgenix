@@ -273,7 +273,11 @@ def sanitize_latex(text: str) -> str:
     text = re.sub(r'(?<!\\)end\{', r'\\end{', text)
 
     # ── Phase 2: Fix matrix row separators ───────────────────────────
-    matrix_envs = ['bmatrix', 'pmatrix', 'vmatrix', 'matrix', 'Bmatrix', 'Vmatrix', 'cases']
+    # 'array' was missing here — \begin{array}{ll}...\end{array} (a very
+    # common construct for piecewise/Laplace functions in this project's
+    # content) was silently never getting its row separators repaired.
+    matrix_envs = ['bmatrix', 'pmatrix', 'vmatrix', 'matrix', 'Bmatrix', 'Vmatrix',
+                   'cases', 'array', 'align', 'align*', 'aligned', 'gathered', 'split']
     for env in matrix_envs:
         pattern = r'(\\begin\{' + env + r'\})([\s\S]*?)(\\end\{' + env + r'\})'
         
@@ -294,6 +298,16 @@ def sanitize_latex(text: str) -> str:
             sanitized_content = re.sub(r'\\+', replace_slashes, content)
             return begin_tag + sanitized_content + end_tag
         text = re.sub(pattern, replace_matrix, text)
+
+    # ── Phase 2b: Escape bare curly-brace delimiters after \left/\right ──
+    # \left{ and \right} are a DIFFERENT bug class from a missing command
+    # backslash: \left itself is present and correct, but KaTeX requires
+    # the delimiter argument to carry its own backslash (\left\{) — a bare
+    # { is parsed as a TeX group-opener, not a delimiter, and errors out.
+    # This is easy to miss because \left/\right look completely correct
+    # at a glance; only the brace right after them is wrong.
+    text = re.sub(r'\\left\{', r'\\left\\{', text)
+    text = re.sub(r'\\right\}', r'\\right\\}', text)
 
     # ── Phase 3: Fix missing backslash on bare LaTeX commands ────────
     # Lookahead accepts normal delimiters/punctuation/end-of-string OR the
