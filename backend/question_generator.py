@@ -443,11 +443,17 @@ LaTeX rules:
 - NEVER put English text inside $...$. WRONG: "$x = 3 is the solution$". RIGHT: "$x = 3$ is the solution"
 - Use \\frac{{a}}{{b}}, \\sqrt{{x}}, $inline$, $$block$$
 
+Question-writing rules:
+- The question must ONLY state the problem. Do NOT include the solving formula or method in the question.
+  WRONG: "Find the Laplace transform of $f(t)$ using the formula $L{{f(t)}} = ...$"
+  RIGHT: "Find the Laplace transform of $f(t) = t^2 \\sin 3t$"
+- Give ONLY the function/expression/values to work with. Formulas go in solution_steps, NOT the question.
+
 Content rules:
-- 3 questions, each on a different topic from the context
+- 3 questions, each on a DIFFERENT sub-topic from the context (never repeat the same theorem/transform/method)
 - Verify arithmetic correctness before outputting
-- Include all values and parameters needed to solve inside the question (e.g. state n for nth-derivative problems)
-- Never combine mismatched types (no adding a scalar to a vector, no equating one item to a fraction of a count)
+- Include all values and parameters needed to define the problem (e.g. state n for nth-derivative)
+- Never combine mismatched types (no adding a scalar to a vector)
 - Exactly 2 short solution steps per question (1 sentence each)
 - {level_instruction}
 {exclusion_instruction}

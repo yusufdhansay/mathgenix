@@ -99,8 +99,8 @@ def generate_questions_groq(
         topic_list = "; ".join(f'"{t}"' for t in previous_topics)
         exclusion_instruction = (
             f"\nCRITICAL UNIQUENESS RULE: The user has already generated questions on these topics: [{topic_list}]. "
-            f"You MUST generate questions on COMPLETELY DIFFERENT topics, sub-topics, and formulas from the context. "
-            f"Do NOT repeat, rephrase, or reuse any of the above topics. Pick fresh mathematical concepts.\n"
+            f"You MUST generate questions on COMPLETELY DIFFERENT sub-topics, theorems, and formulas from the context. "
+            f"Do NOT repeat, rephrase, or reuse any of the above topics or their close variations. Pick fresh mathematical concepts.\n"
         )
 
     # Richer prompt for cloud — 70B models can follow complex instructions reliably
@@ -109,7 +109,7 @@ def generate_questions_groq(
 Return ONLY a raw JSON object (no markdown, no code fences).
 
 JSON format:
-{{"questions":[{{"id":1,"topic":"Short Topic","question":"Question text with $inline\\ math$ and $$display\\ math$$","answer":"$x=3$","solution_steps":["Step 1 (1 sentence)","Step 2 (1 sentence)"]}}]}}
+{{"questions":[{{"id":1,"topic":"Short Topic","question":"Question text with $inline\\ math$","answer":"$x=3$","solution_steps":["Step 1 (1 sentence)","Step 2 (1 sentence)"]}}]}}
 
 CRITICAL LaTeX formatting rules:
 - Wrap ONLY pure math expressions in $ delimiters: $x^2 + 3x = 0$, $\\frac{{1}}{{2}}$
@@ -118,11 +118,24 @@ CRITICAL LaTeX formatting rules:
 - Each $ must have a matching closing $. Every $...$ block must contain ONLY valid LaTeX math
 - Use \\frac{{a}}{{b}} for fractions, \\sqrt{{x}} for roots, $inline$ for inline, $$display$$ for block
 
+CRITICAL question-writing rules:
+- The "question" field must ONLY state the problem to solve. It must NOT include the solving formula, derivation method, or answer approach.
+  WRONG: "Find the Fourier transform of $f(x) = e^{{-|x|}}$ using the formula $F(\\lambda) = \\frac{{1}}{{2\\pi}} \\int_{{-\\infty}}^{{\\infty}} f(u) e^{{-i\\lambda u}} du$"
+  RIGHT: "Find the Fourier transform of $f(x) = e^{{-|x|}}$"
+  WRONG: "Find the Laplace transform of $f(t) = e^u \\frac{{\\sin u}}{{u}}$ using the given formula $\\frac{{1}}{{s}} \\cot^{{-1}}(s-1)$"
+  RIGHT: "Find the Laplace transform of $f(t) = e^t \\frac{{\\sin t}}{{t}}$"
+- The question should give ONLY the function/expression/values to work with. The formula/method belongs in the solution_steps and answer, NOT the question.
+- Include all numerical values and parameters needed to define the problem (e.g. state $n$ for nth-derivative), but NEVER the solving technique.
+
+Topic diversity rules:
+- Each of the 5 questions MUST cover a DIFFERENT mathematical sub-topic. Listing the same parent topic (e.g. "Laplace Transform") for multiple questions is STRICTLY FORBIDDEN.
+  WRONG: Q1=Laplace Transform, Q2=Laplace Transform, Q3=Laplace Transform, Q4=Laplace Transform
+  RIGHT: Q1=Laplace Transform, Q2=Fourier Series, Q3=Z-Transform, Q4=Partial Differential Equations, Q5=Complex Integration
+- If the context contains only one broad topic (e.g. only Laplace Transforms), then each question must use a DIFFERENT theorem, property, or function type within that topic (e.g. first shifting, second shifting, convolution, inverse, unit step).
+
 Content rules:
-- Generate exactly 5 questions, each on a DIFFERENT mathematical topic from the context
 - Every question must be mathematically correct — verify your arithmetic before outputting
-- Include all numerical values AND parameters needed to solve inside the question text (e.g. state n for nth-derivative problems)
-- Never combine mismatched types in one expression (e.g. do not add a scalar to a vector, do not equate a single item to a fraction of a count)
+- Never combine mismatched types in one expression (e.g. do not add a scalar to a vector)
 - The question's actual solve step, not just its wording, must match the target Bloom's level below
 - Provide exactly 2 concise solution steps per question (1 sentence each)
 - {level_instruction}
@@ -137,14 +150,14 @@ Context:
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a precise mathematics question generator. Output ONLY valid JSON. CRITICAL: Base all questions strictly and exclusively on the provided context. In LaTeX, use $ only around pure math expressions (e.g. $x^2$). NEVER use $ as a currency symbol — write out the currency name (e.g., '100 dollars' instead of '$100'). Never put English words inside $ delimiters."
+                    "content": "You are a precise mathematics exam paper setter. Output ONLY valid JSON. CRITICAL RULES: 1) Base all questions strictly on the provided context. 2) Questions must ONLY state the problem — NEVER include the solving formula, derivation method, or answer approach in the question text. The formula/method goes in solution_steps only. 3) Each question must cover a genuinely DIFFERENT sub-topic — never repeat the same transform, theorem, or method across questions. 4) In LaTeX, use $ only around pure math (e.g. $x^2$). NEVER use $ for currency. Never put English inside $."
                 },
                 {
                     "role": "user",
                     "content": prompt,
                 }
             ],
-            "temperature": 0.5,
+            "temperature": 0.7,
             "max_tokens": 2048,
             "response_format": {"type": "json_object"},
         }
