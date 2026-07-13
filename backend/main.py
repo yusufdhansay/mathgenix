@@ -15,7 +15,7 @@ from .question_generator import generate_questions
 from .groq_generator import (
     generate_questions_groq,
     check_groq_connection,
-    get_groq_api_key,
+    get_groq_api_keys,
     GROQ_MODELS,
 )
 
@@ -64,8 +64,9 @@ async def health_check():
         ollama_status = "Disconnected (Ensure Ollama is running locally)"
 
     # Check Groq
-    groq_key = get_groq_api_key()
-    groq_info = check_groq_connection(groq_key)
+    groq_keys = get_groq_api_keys()
+    # Check the first key for basic connectivity status
+    groq_info = check_groq_connection(groq_keys[0]) if groq_keys else {"status": "No API Key", "available": False}
 
     return {
         "status": "healthy",
@@ -77,7 +78,8 @@ async def health_check():
         "groq": {
             "status": groq_info["status"],
             "available": groq_info["available"],
-            "has_key": bool(groq_key and groq_key != "your_key_here"),
+            "has_key": len(groq_keys) > 0,
+            "key_count": len(groq_keys)
         }
     }
 
@@ -117,7 +119,7 @@ async def set_groq_key(request: ApiKeyRequest):
         raise HTTPException(status_code=400, detail="API key cannot be empty.")
     
     # Set in current process environment
-    os.environ["GROQ_API_KEY"] = api_key
+    os.environ["GROQ_API_KEYS"] = api_key
     
     # Persist to .env file
     env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
@@ -128,18 +130,19 @@ async def set_groq_key(request: ApiKeyRequest):
             with open(env_path, "r") as f:
                 existing_lines = f.readlines()
         
-        # Update or append GROQ_API_KEY
+        # Update or append GROQ_API_KEYS (and remove old GROQ_API_KEY)
         key_found = False
         new_lines = []
         for line in existing_lines:
-            if line.strip().startswith("GROQ_API_KEY="):
-                new_lines.append(f"GROQ_API_KEY={api_key}\n")
-                key_found = True
+            if line.strip().startswith("GROQ_API_KEYS=") or line.strip().startswith("GROQ_API_KEY="):
+                if not key_found:
+                    new_lines.append(f"GROQ_API_KEYS={api_key}\n")
+                    key_found = True
             else:
                 new_lines.append(line)
         
         if not key_found:
-            new_lines.append(f"GROQ_API_KEY={api_key}\n")
+            new_lines.append(f"GROQ_API_KEYS={api_key}\n")
         
         with open(env_path, "w") as f:
             f.writelines(new_lines)
@@ -147,8 +150,9 @@ async def set_groq_key(request: ApiKeyRequest):
     except Exception as e:
         print(f"Warning: Could not persist API key to .env: {e}")
     
-    # Verify the key works
-    status = check_groq_connection(api_key)
+    # Verify the key works (check the first one)
+    keys_list = [k.strip() for k in api_key.split(",")]
+    status = check_groq_connection(keys_list[0]) if keys_list else {"status": "No API Key", "available": False}
     
     return {
         "success": True,
@@ -170,8 +174,9 @@ async def upload_file(file: UploadFile = File(...)):
         file_bytes = await file.read()
 
         # Pass Groq API key for vision OCR (images & scanned PDFs)
-        groq_key = get_groq_api_key()
-        result = extract_text_from_bytes(file_bytes, filename, api_key=groq_key)
+        groq_keys = get_groq_api_keys()
+        primary_key = groq_keys[0] if groq_keys else ""
+        result = extract_text_from_bytes(file_bytes, filename, api_key=primary_key)
 
         text_content = result["text"]
         ocr_used = result["ocr_used"]
@@ -202,12 +207,12 @@ async def generate_questions_endpoint(request: GenerateRequest):
     
     if request.provider == "groq":
         # Cloud generation via Groq LPU
-        api_key = get_groq_api_key()
+        api_keys = get_groq_api_keys()
         result = generate_questions_groq(
             text=request.text,
             taxonomy_level=request.taxonomy_level,
             model_name=request.model_name,
-            api_key=api_key,
+            api_keys=api_keys,
             previous_topics=request.previous_topics,
         )
     else:

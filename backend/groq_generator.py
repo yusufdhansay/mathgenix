@@ -33,9 +33,10 @@ GROQ_MODELS = [
 ]
 
 
-def get_groq_api_key() -> str:
-    """Returns the Groq API key from environment."""
-    return os.environ.get("GROQ_API_KEY", "")
+def get_groq_api_keys() -> list:
+    """Returns a list of Groq API keys from the environment."""
+    keys_str = os.environ.get("GROQ_API_KEYS", os.environ.get("GROQ_API_KEY", ""))
+    return [k.strip() for k in keys_str.split(",") if k.strip() and k.strip() != "your_key_here"]
 
 
 def check_groq_connection(api_key: str) -> dict:
@@ -68,15 +69,15 @@ def generate_questions_groq(
     text: str,
     taxonomy_level: str,
     model_name: str = "llama-3.3-70b-versatile",
-    api_key: str = "",
+    api_keys: list = None,
     previous_topics: list = None,
 ) -> dict:
     """
     Generates math questions using Groq's cloud LPU inference.
-    Returns 5 questions (cloud can handle the larger payload easily).
+    Implements round-robin fallback across multiple API keys on 429 Rate Limit.
     """
-    if not api_key or api_key == "your_key_here":
-        return {"error": "Groq API key not configured. Go to Settings and enter your key from console.groq.com"}
+    if not api_keys:
+        return {"error": "Groq API key(s) not configured. Go to Settings and enter your key(s)."}
 
     level_instruction = BLOOMS_INSTRUCTIONS.get(taxonomy_level, "Generate questions based on the text.")
 
@@ -165,22 +166,37 @@ Context:
         print(f">>> [GROQ] Sending request ({model_name})...")
         start_time = time.time()
 
-        response = requests.post(
-            GROQ_API_URL,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=30,  # Groq should respond in <10s
-        )
+        response = None
+        used_key = ""
+        
+        # Try each key in the list sequentially if we hit a 429 Rate Limit
+        for attempt, key in enumerate(api_keys):
+            used_key = key
+            if attempt > 0:
+                print(f">>> [GROQ] Retry attempt {attempt+1} with next API key...")
+                
+            response = requests.post(
+                GROQ_API_URL,
+                headers={
+                    "Authorization": f"Bearer {key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=30,
+            )
+            
+            if response.status_code == 429:
+                print(f"!!! [GROQ] Rate limit exceeded for key ending in ...{key[-4:]} !!!")
+                continue # Try the next key
+            else:
+                break # Success or non-429 error, stop trying keys
 
         elapsed = time.time() - start_time
 
         if response.status_code == 401:
             return {"error": "Invalid Groq API key. Please check your key in Settings."}
         elif response.status_code == 429:
-            return {"error": "Groq rate limit exceeded. Please wait a moment and try again (free tier: 30 req/min)."}
+            return {"error": "Groq rate limit exceeded on all available keys. Please wait a moment and try again."}
         elif response.status_code == 400:
             # Groq's json_object mode validates JSON server-side and rejects the
             # request outright if the model's raw output isn't strictly valid —
@@ -215,7 +231,7 @@ Context:
                 fallback_response = requests.post(
                     GROQ_API_URL,
                     headers={
-                        "Authorization": f"Bearer {api_key}",
+                        "Authorization": f"Bearer {used_key}",
                         "Content-Type": "application/json",
                     },
                     json=fallback_payload,
