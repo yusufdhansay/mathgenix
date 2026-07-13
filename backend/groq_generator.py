@@ -168,6 +168,58 @@ Context:
             return {"error": "Invalid Groq API key. Please check your key in Settings."}
         elif response.status_code == 429:
             return {"error": "Groq rate limit exceeded. Please wait a moment and try again (free tier: 30 req/min)."}
+        elif response.status_code == 400:
+            # Groq's json_object mode validates JSON server-side and rejects the
+            # request outright if the model's raw output isn't strictly valid —
+            # even though our own extract_json is now more permissive and could
+            # often recover it (unescaped LaTeX backslashes are exactly the kind
+            # of thing that trips Groq's validator but not ours). Recover the
+            # generated text from the error body instead of discarding it.
+            try:
+                error_body = response.json().get("error", {})
+                failed_text = error_body.get("failed_generation", "")
+            except Exception:
+                failed_text = ""
+
+            if failed_text:
+                print(">>> [GROQ] Server rejected JSON, attempting local recovery from failed_generation...")
+                recovered = extract_json(failed_text)
+                if recovered and "questions" in recovered and len(recovered["questions"]) > 0:
+                    recovered["questions"] = sanitize_question_batch(recovered["questions"])
+                    print(f">>> [GROQ] Recovered {len(recovered['questions'])} question(s) that Groq's own validator had rejected")
+                    return recovered
+
+            # Recovery from failed_generation wasn't possible (field missing, or
+            # even our permissive parser couldn't salvage it). Make ONE real
+            # second attempt with response_format removed entirely — this
+            # bypasses Groq's strict server-side JSON validation altogether,
+            # so the model's raw text reaches us regardless of how "invalid"
+            # Groq considers it, and our own extract_json gets a real shot at it.
+            print(">>> [GROQ] Recovery unavailable, retrying without strict json_object mode...")
+            try:
+                fallback_payload = dict(payload)
+                fallback_payload.pop("response_format", None)
+                fallback_response = requests.post(
+                    GROQ_API_URL,
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=fallback_payload,
+                    timeout=30,
+                )
+                if fallback_response.status_code == 200:
+                    fallback_result = fallback_response.json()
+                    fallback_text = fallback_result.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    fallback_parsed = extract_json(fallback_text)
+                    if fallback_parsed and "questions" in fallback_parsed and len(fallback_parsed["questions"]) > 0:
+                        fallback_parsed["questions"] = sanitize_question_batch(fallback_parsed["questions"])
+                        print(f">>> [GROQ] Fallback attempt recovered {len(fallback_parsed['questions'])} question(s)")
+                        return fallback_parsed
+            except Exception as fallback_err:
+                print(f">>> [GROQ] Fallback attempt also failed: {fallback_err}")
+
+            return {"error": f"Groq API error ({response.status_code}): {response.text[:200]}"}
         elif response.status_code != 200:
             return {"error": f"Groq API error ({response.status_code}): {response.text[:200]}"}
 

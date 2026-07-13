@@ -52,11 +52,11 @@ def retrieve_relevant_chunks(chunks, query, k=3):
 def extract_json(text: str):
     """
     Attempts to extract and parse a JSON block from the LLM output.
-    Preprocesses LaTeX backslashes to prevent JSON decode errors and control character stripping.
+    Preprocesses LaTeX backslashes, trailing commas, smart quotes, embedded
+    newlines, unescaped inner quotes, and truncation to prevent JSONDecodeErrors.
     """
     text = text.strip()
-    
-    # Remove markdown code fences if present
+
     if text.startswith("```json"):
         text = text[7:]
     if text.startswith("```"):
@@ -65,29 +65,68 @@ def extract_json(text: str):
         text = text[:-3]
     text = text.strip()
 
-    # Preprocess text to escape LaTeX backslashes.
-    # We want to double any backslash that is NOT followed by '"' or '\'.
-    # This prevents json.loads from parsing LaTeX commands like \begin, \frac, \theta, \nabla as JSON escapes.
+    # Fix 1: Normalize smart/curly quotes to straight quotes.
+    _SMART_QUOTES = {'\u201c': '"', '\u201d': '"', '\u2018': "'", '\u2019': "'"}
+    for smart, straight in _SMART_QUOTES.items():
+        text = text.replace(smart, straight)
+
+    # Fix 2+3 (combined state-machine pass): escape bare backslashes that
+    # aren't already valid JSON escapes (LaTeX commands like \frac, \theta,
+    # \nabla), escape literal newlines/tabs/CRs found INSIDE a string value,
+    # and escape a `"` that appears inside a string but isn't really closing
+    # it (heuristic: if what follows past whitespace isn't , : } ] then it's
+    # literal content, not a real closing quote).
+    #
+    # IMPORTANT: only '"' and '\\' are treated as "already a valid escape,
+    # leave alone" — NOT n/t/r/b/f/u. Those letters are exactly the first
+    # letter of extremely common LaTeX commands (\nabla, \tan, \frac,
+    # \right, \beta, \upsilon), so treating them as pass-through JSON
+    # escapes would silently corrupt LaTeX into literal control characters.
     fixed = []
     i = 0
-    while i < len(text):
-        if text[i] == '\\' and i + 1 < len(text):
-            next_char = text[i + 1]
-            if next_char in ('"', '\\'):
-                # Keep escaped quotes and escaped backslashes as-is
-                fixed.append(text[i])
-                fixed.append(text[i + 1])
-                i += 2
+    in_string = False
+    n = len(text)
+    while i < n:
+        ch = text[i]
+
+        if ch == '\\' and i + 1 < n:
+            nxt = text[i + 1]
+            if nxt in ('"', '\\'):
+                fixed.append(ch); fixed.append(nxt); i += 2
             else:
-                # Double the backslash for everything else (LaTeX commands, etc.)
-                fixed.append('\\')
-                fixed.append('\\')
-                fixed.append(text[i + 1])
-                i += 2
-        else:
-            fixed.append(text[i])
+                fixed.append('\\'); fixed.append('\\'); fixed.append(nxt); i += 2
+            continue
+
+        if ch == '"':
+            if in_string:
+                j = i + 1
+                while j < n and text[j] in ' \t\r\n':
+                    j += 1
+                if j < n and text[j] in ',:}]':
+                    in_string = False
+                    fixed.append(ch)
+                else:
+                    fixed.append('\\"')
+            else:
+                in_string = True
+                fixed.append(ch)
             i += 1
+            continue
+
+        if in_string and ch == '\n':
+            fixed.append('\\n'); i += 1; continue
+        if in_string and ch == '\r':
+            fixed.append('\\r'); i += 1; continue
+        if in_string and ch == '\t':
+            fixed.append('\\t'); i += 1; continue
+
+        fixed.append(ch)
+        i += 1
+
     processed_text = ''.join(fixed)
+
+    # Fix 4: Strip trailing commas before a closing brace/bracket.
+    processed_text = re.sub(r',(\s*[}\]])', r'\1', processed_text)
 
     # Strategy 1: Direct parse
     try:
@@ -95,7 +134,7 @@ def extract_json(text: str):
     except json.JSONDecodeError:
         pass
 
-    # Strategy 2: Find JSON object boundaries with brace matching
+    # Strategy 2: Brace-matching boundary extraction
     start_idx = processed_text.find('{"questions"')
     if start_idx == -1:
         start_idx = processed_text.find('{')
@@ -103,21 +142,17 @@ def extract_json(text: str):
         return None
 
     brace_count = 0
-    in_string = False
-    escape_next = False
+    in_str = False
     json_str = ""
-
-    for i in range(start_idx, len(processed_text)):
+    i = start_idx
+    while i < len(processed_text):
         char = processed_text[i]
-        if escape_next:
-            escape_next = False
-            continue
-        if char == '\\':
-            escape_next = True
+        if char == '\\' and i + 1 < len(processed_text):
+            i += 2
             continue
         if char == '"':
-            in_string = not in_string
-        if not in_string:
+            in_str = not in_str
+        if not in_str:
             if char == '{':
                 brace_count += 1
             elif char == '}':
@@ -128,6 +163,41 @@ def extract_json(text: str):
                         return json.loads(json_str)
                     except json.JSONDecodeError:
                         break
+        i += 1
+
+    # Fix 5: Truncation recovery. If the model hit max_tokens mid-question,
+    # salvage every COMPLETE question object instead of discarding the whole
+    # batch. Find the last fully-closed "}" belonging to a question entry,
+    # cut there, and re-close the array/object.
+    q_start = processed_text.find('"questions"')
+    if q_start != -1:
+        arr_start = processed_text.find('[', q_start)
+        if arr_start != -1:
+            depth = 0
+            last_complete_end = -1
+            in_str2 = False
+            k = arr_start
+            while k < len(processed_text):
+                c = processed_text[k]
+                if c == '\\' and k + 1 < len(processed_text):
+                    k += 2
+                    continue
+                if c == '"':
+                    in_str2 = not in_str2
+                if not in_str2:
+                    if c == '{':
+                        depth += 1
+                    elif c == '}':
+                        depth -= 1
+                        if depth == 0:
+                            last_complete_end = k
+                k += 1
+            if last_complete_end != -1:
+                salvaged = processed_text[:last_complete_end + 1] + "]}"
+                try:
+                    return json.loads(salvaged)
+                except json.JSONDecodeError:
+                    pass
 
     return None
 
