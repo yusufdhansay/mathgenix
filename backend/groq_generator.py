@@ -37,13 +37,35 @@ import os
 from dotenv import load_dotenv
 
 def get_groq_api_keys() -> list:
-    """Returns a list of Groq API keys from the environment."""
-    # Force reload .env so manual edits take effect instantly without server restart
+    """Returns a list of Groq API keys from the environment.
+    Reads directly from the .env file as a fallback to ensure
+    comma-separated keys are always parsed correctly.
+    """
+    # Force reload .env so manual edits take effect instantly
     env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
     load_dotenv(dotenv_path=env_path, override=True)
     
-    keys_str = os.environ.get("GROQ_API_KEYS", os.environ.get("GROQ_API_KEY", ""))
-    return [k.strip() for k in keys_str.split(",") if k.strip() and k.strip() != "your_key_here"]
+    # Try GROQ_API_KEYS first, then GROQ_API_KEY
+    keys_str = os.environ.get("GROQ_API_KEYS", "") or os.environ.get("GROQ_API_KEY", "")
+    
+    # Fallback: read the .env file directly in case dotenv truncated at the comma
+    if keys_str and "," not in keys_str:
+        try:
+            with open(env_path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("GROQ_API_KEYS=") or line.startswith("GROQ_API_KEY="):
+                        keys_str = line.split("=", 1)[1].strip()
+                        break
+        except Exception:
+            pass
+    
+    keys = [k.strip() for k in keys_str.split(",") if k.strip() and k.strip() != "your_key_here"]
+    
+    # Debug: log how many keys were loaded (visible in uvicorn terminal)
+    print(f">>> [GROQ] Loaded {len(keys)} API key(s): {[f'...{k[-4:]}' for k in keys]}")
+    
+    return keys
 
 
 def check_groq_connection(api_key: str) -> dict:

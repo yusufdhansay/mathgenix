@@ -83,6 +83,17 @@ async def health_check():
         }
     }
 
+@app.get("/api/debug-keys")
+async def debug_keys():
+    """Temporary debug endpoint — shows how many Groq keys are loaded."""
+    keys = get_groq_api_keys()
+    return {
+        "key_count": len(keys),
+        "keys_preview": [f"...{k[-4:]}" for k in keys],
+        "env_GROQ_API_KEYS": bool(os.environ.get("GROQ_API_KEYS")),
+        "env_GROQ_API_KEY": bool(os.environ.get("GROQ_API_KEY")),
+    }
+
 @app.get("/api/models")
 async def list_models():
     """
