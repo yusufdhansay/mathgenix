@@ -12,11 +12,31 @@ OLLAMA_API_URL = os.environ.get("OLLAMA_API_URL", "http://127.0.0.1:11434")
 # Dictionary mapping Bloom's taxonomy levels to compact cognitive tier blueprints
 BLOOMS_INSTRUCTIONS = {
     "Remember": "REMEMBER: Ask recall-only questions about definitions, formulas, or theorems explicitly stated in the context. E.g., state a formula or identify a term from the text. Do not ask for multi-step calculations.",
-    "Understand": "UNDERSTAND: Ask conceptual questions requiring explanation or interpretation of ideas from the context. E.g., explain what a term means in the context of the text, or translate a relation described in the text into an equation.",
+    "Understand": (
+        "UNDERSTAND: Questions must test CONCEPTUAL COMPREHENSION — the student should explain, interpret, paraphrase, or compare ideas from the context. "
+        "STRICTLY FORBIDDEN patterns: "
+        "(a) 'Find the probability of...' or 'Calculate the value of...' — that is Apply level, NOT Understand. "
+        "(b) 'Who is credited with...' or 'In what year...' — that is Remember level, NOT Understand. "
+        "CORRECT Understand-level patterns: "
+        "(1) 'Explain in your own words why [theorem/formula] holds under [condition]' "
+        "(2) 'Describe the geometric interpretation of [concept] in the context of [topic]' "
+        "(3) 'Compare and contrast [method A] and [method B] as described in the text' "
+        "(4) 'What happens to [result] if [parameter/condition] is changed? Explain conceptually' "
+        "The question must require the student to EXPLAIN or INTERPRET, never to compute a numerical answer."
+    ),
     "Apply": "APPLY: Ask procedural questions where the user must apply a formula or algorithm present in the context to solve a problem with given values. E.g., compute a value using a formula from the text. Do not generate unrelated topics like compound interest or quadratic equations unless they are in the context.",
     "Analyze": (
-        "ANALYZE: Require breaking a problem into parts, finding an error in a worked solution, "
-        "or comparing two methods from the context. NOT a single formula lookup (that is Apply)."
+        "ANALYZE: Questions must require DECOMPOSITION, ERROR DETECTION, or STRUCTURAL COMPARISON — the student should break a problem into components, identify flaws, or distinguish between approaches. "
+        "STRICTLY FORBIDDEN patterns: "
+        "(a) 'Find the derivative/transform/integral of...' — that is Apply level, NOT Analyze. "
+        "(b) 'Solve the differential equation...' — that is Apply level, NOT Analyze. "
+        "(c) Any question that can be answered by plugging values into a single formula is Apply, NOT Analyze. "
+        "CORRECT Analyze-level patterns: "
+        "(1) 'The following worked solution contains an error: [show steps]. Identify the mistake and explain why it is incorrect' "
+        "(2) 'Break down the solution of [complex problem] into its component sub-problems and explain the role of each step' "
+        "(3) 'Compare method A vs method B for solving [problem type]. Under what conditions does each method fail or succeed?' "
+        "(4) 'Given that [result], determine which theorem or property from the context was applied and justify your reasoning' "
+        "The question must force the student to DECOMPOSE, DISTINGUISH, or DETECT errors — not just compute."
     ),
     "Evaluate": "EVALUATE: Ask justification or assessment questions based on the context. E.g., justify why a theorem from the text holds under certain conditions, or evaluate which method from the text is more efficient.",
     "Create": (
