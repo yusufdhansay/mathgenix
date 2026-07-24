@@ -28,6 +28,7 @@ GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # Models available on Groq's free tier
 GROQ_MODELS = [
+    {"id": "openai/gpt-oss-120b", "name": "GPT OSS 120B", "description": "Largest model — best Bloom's accuracy & structured output"},
     {"id": "llama-3.3-70b-versatile", "name": "Llama 3.3 70B", "description": "Flagship model with strong math reasoning"},
     {"id": "llama-3.1-8b-instant", "name": "Llama 3.1 8B", "description": "Blazing-fast low-latency completion"},
 ]
