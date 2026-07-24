@@ -11,7 +11,22 @@ OLLAMA_API_URL = os.environ.get("OLLAMA_API_URL", "http://127.0.0.1:11434")
 
 # Dictionary mapping Bloom's taxonomy levels to compact cognitive tier blueprints
 BLOOMS_INSTRUCTIONS = {
-    "Remember": "REMEMBER: Ask recall-only questions about definitions, formulas, or theorems explicitly stated in the context. E.g., state a formula or identify a term from the text. Do not ask for multi-step calculations.",
+    "Remember": (
+        "REMEMBER: Questions must test PURE RECALL — the student should state, list, define, or identify facts, definitions, formulas, properties, or theorems EXACTLY as they appear in the context. "
+        "The answer must be something the student can retrieve from memory without ANY computation. "
+        "STRICTLY FORBIDDEN patterns: "
+        "(a) 'Find the determinant of...' or 'Compute the inverse of...' or 'Solve the system...' — that requires CALCULATION, which is Apply level, NOT Remember. "
+        "(b) 'Find the eigenvalues of...' or 'Evaluate the product...' — that requires MULTI-STEP COMPUTATION, which is Apply level, NOT Remember. "
+        "(c) ANY question that requires the student to pick up a pen and calculate a numerical result is NOT Remember level. "
+        "CORRECT Remember-level patterns: "
+        "(1) 'State the definition of [concept] as given in the text' "
+        "(2) 'What is the formula for [operation] of a matrix?' (student writes the formula, does NOT apply it) "
+        "(3) 'List the properties of [concept] mentioned in the text' "
+        "(4) 'What conditions must a matrix satisfy to be called [type]?' "
+        "(5) 'Identify the type of matrix: $A = \\\\begin{pmatrix} 1 & 0 \\\\\\\\ 0 & 1 \\\\end{pmatrix}$' (recognition, not computation) "
+        "(6) 'State the Cayley-Hamilton theorem' "
+        "The answer to every Remember question must be a definition, a formula, a property, a name, or a classification — NEVER a computed number."
+    ),
     "Understand": (
         "UNDERSTAND: Questions must test CONCEPTUAL COMPREHENSION — the student should explain, interpret, paraphrase, or compare ideas from the context. "
         "STRICTLY FORBIDDEN patterns: "
